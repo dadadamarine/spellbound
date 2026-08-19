@@ -64,6 +64,15 @@ test("새싹마을의 집은 영어박사님 집이며 내부에서 세 스타�
   assert.match(html, /다른 덱 고르기/);
 });
 
+test("스타팅 덱 카드를 누르면 별도 확인 없이 즉시 5문제 시험을 시작한다", () => {
+  const startIndex = html.indexOf("function selectStarterDeck");
+  const endIndex = html.indexOf("function startStarterDeckExam", startIndex);
+  const selectionSource = html.slice(startIndex, endIndex);
+
+  assert.match(selectionSource, /startStarterDeckExam\(starterDeckId\)/);
+  assert.doesNotMatch(selectionSource, /renderStarterDeckChoices\(\)/);
+});
+
 test("플레이어 시작 지점은 걸을 수 있는 새싹마을 길이다", () => {
   const api = loadWorldTestApi();
   const initialWorld = api.createWorldState();
