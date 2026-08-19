@@ -128,7 +128,7 @@
     {"id":"FLOW-05-S04","flowId":"FLOW-05","name":"라이벌 기억 복구","expected":"courage 복구 후 박사 귀환","observed":"courage 카드 덱 등록, 흰 기록 조각과 박사 귀환 목표 표시","status":"verified","captureIds":[],"interactionIds":["I-20"]},
 
     {"id":"FLOW-06-S01","flowId":"FLOW-06","name":"초기화 경고·취소","expected":"영향 범위 공개 후 취소 가능","observed":"덱·도감·스토리·랭크 삭제 경고, 취소 시 기존 저장 유지","status":"verified","captureIds":[],"interactionIds":["I-21"]},
-    {"id":"FLOW-06-S02","flowId":"FLOW-06","name":"초기화 확정","expected":"기본 진행으로 복귀","observed":"확정 뒤 빈 덱·프롤로그·세 덱 선택 상태 확인","status":"verified","captureIds":[],"interactionIds":["I-22"]},
+    {"id":"FLOW-06-S02","flowId":"FLOW-06","name":"초기화 확정","expected":"기본 진행으로 복귀","observed":"확정 직후 새로고침 없이 실내 DECK 0과 프롤로그가 함께 표시되고 덱·도감·스토리·랭크 초기화가 저장됨","status":"verified","captureIds":[],"interactionIds":["I-22"]},
 
     {"id":"FLOW-07-S01","flowId":"FLOW-07","name":"도감 계층 조회","expected":"picture의 뜻과 예문 카드 수 표시","observed":"뜻 2개, 예문 4개, 수집 3개를 뜻별로 표시","status":"verified","captureIds":["C-02"],"interactionIds":["I-23"]},
     {"id":"FLOW-07-S02","flowId":"FLOW-07","name":"덱 변형 카드 조회","expected":"동일 표제어의 별도 카드 표시","observed":"picture 카드 3장이 그림/사진 및 서로 다른 예문으로 분리 표시","status":"verified","captureIds":["C-03"],"interactionIds":["I-24"]}
@@ -176,6 +176,18 @@
       "interactionIds": ["I-01"],
       "recommendation": "전용 실내 맵으로 진입한 뒤 박사님과 덱을 공간 안의 상호작용 대상으로 제공한다.",
       "completionEvidence": "현재 빌드에서 문 조사 후 professor-house 화면으로 전환되고, 남쪽 문 퇴장·박사·세 덱 좌표 상호작용이 브라우저와 자동 테스트로 확인됨."
+    },
+    {
+      "id": "FLOW-F-02",
+      "type": "expectation-gap",
+      "severity": "low",
+      "title": "새 모험 확정 직후 영어박사님 집의 DECK HUD가 이전 값을 표시함",
+      "flowIds": ["FLOW-06"],
+      "stepIds": ["FLOW-06-S02"],
+      "captureIds": [],
+      "interactionIds": ["I-22"],
+      "recommendation": "confirmWordlandRestart에서 영어박사님 집 실내 HUD를 즉시 다시 렌더링한다.",
+      "completionEvidence": "renderProfessorHouseInterior 호출을 추가하고 32장 테스트 저장에서 초기화 확정 직후 새로고침 없이 DECK 0 표시를 브라우저로 확인함."
     }
   ],
   "limitations": [],

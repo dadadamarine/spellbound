@@ -120,6 +120,20 @@ test("이미 덱이 있는 사용자는 박사님 집에서 확인 후 새 모�
   assert.match(html, /저장 초기화하고 다시 시작/);
 });
 
+test("새 모험 확정 직후 영어박사님 집의 덱 HUD를 0장으로 다시 그린다", () => {
+  const restartStart = html.indexOf("function confirmWordlandRestart");
+  const restartEnd = html.indexOf("function prepareEnglishProfessorPanel", restartStart);
+  const restartSource = html.slice(restartStart, restartEnd);
+
+  assert.match(restartSource, /S\.deck = \[\]/);
+  assert.match(restartSource, /renderProfessorHouseInterior\(\)/);
+  assert.ok(
+    restartSource.indexOf("renderProfessorHouseInterior()") <
+      restartSource.indexOf("renderStoryPrologueScene(0)"),
+    "빈 덱 상태를 프롤로그보다 먼저 실내 HUD에 반영해야 한다"
+  );
+});
+
 test("플레이어 시작 지점은 걸을 수 있는 새싹마을 길이다", () => {
   const api = loadWorldTestApi();
   const initialWorld = api.createWorldState();
