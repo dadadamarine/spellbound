@@ -24,7 +24,7 @@ function loadWorldTestApi() {
   const worldSource = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${storySource}\n${worldSource}\n;globalThis.__worldTestApi = { createDefaultStoryProgress, createLegacyStoryProgress, enterMemoryForestStory, recordForestMemoryForStory, completeWhitePageStoryEvent, completeStoryRivalDuel, completeForestRivalRescue, createWorldState, getWorldTerrain, getWorldAreaName, getActiveForestStoryNpcAt, isWorldPositionBlocked };`,
+    `${storySource}\n${worldSource}\n;globalThis.__worldTestApi = { createDefaultStoryProgress, createLegacyStoryProgress, enterMemoryForestStory, recordForestMemoryForStory, completeWhitePageStoryEvent, completeStoryRivalDuel, completeForestRivalRescue, createWorldState, getWorldTerrain, getWorldAreaName, getActiveForestStoryNpcAt, isWorldPositionBlocked, createProfessorHouseState, isProfessorHousePositionBlocked, isProfessorHouseExitMove };`,
     sandbox
   );
   return sandbox.__worldTestApi;
@@ -64,6 +64,36 @@ test("새싹마을의 집은 영어박사님 집이며 내부에서 세 스타�
   assert.match(html, /다른 덱 고르기/);
 });
 
+test("영어박사님 집은 문 앞 모달이 아니라 이동 가능한 전용 실내 화면으로 진입한다", () => {
+  assert.match(html, /id="professor-house" class="screen"/);
+  assert.match(html, /id="professor-house-canvas"/);
+  assert.match(html, /class="professor-house-controls"/);
+  assert.match(html, /onclick="moveProfessorHouse\('up'\)"/);
+  assert.match(html, /onclick="interactProfessorHouse\(\)"/);
+
+  const enterStart = html.indexOf("function openEnglishProfessorHouse");
+  const enterEnd = html.indexOf("function openEnglishProfessorDesk", enterStart);
+  const enterSource = html.slice(enterStart, enterEnd);
+  assert.match(enterSource, /showScreen\("professor-house"\)/);
+  assert.doesNotMatch(enterSource, /\$\("panel"\)\.classList\.add\("show"\)/);
+});
+
+test("박사님 집 실내는 박사님·세 덱을 장애물로 두고 남쪽 문으로 나간다", () => {
+  const api = loadWorldTestApi();
+  const house = api.createProfessorHouseState();
+
+  assert.deepEqual(
+    { x: house.x, y: house.y, direction: house.direction },
+    { x: 6, y: 6, direction: "up" }
+  );
+  assert.equal(api.isProfessorHousePositionBlocked(6, 2), true, "박사님 자리에는 들어갈 수 없다");
+  assert.equal(api.isProfessorHousePositionBlocked(3, 4), true, "첫 번째 덱 진열대는 장애물이다");
+  assert.equal(api.isProfessorHousePositionBlocked(6, 4), true, "두 번째 덱 진열대는 장애물이다");
+  assert.equal(api.isProfessorHousePositionBlocked(9, 4), true, "세 번째 덱 진열대는 장애물이다");
+  assert.equal(api.isProfessorHousePositionBlocked(5, 5), false, "가구 사이 바닥은 걸을 수 있다");
+  assert.equal(api.isProfessorHouseExitMove(house, "down"), true, "시작 지점 아래가 출구다");
+});
+
 test("스타팅 덱 카드를 누르면 별도 확인 없이 즉시 5문제 시험을 시작한다", () => {
   const startIndex = html.indexOf("function selectStarterDeck");
   const endIndex = html.indexOf("function startStarterDeckExam", startIndex);
@@ -73,8 +103,8 @@ test("스타팅 덱 카드를 누르면 별도 확인 없이 즉시 5문제 시�
   assert.doesNotMatch(selectionSource, /renderStarterDeckChoices\(\)/);
 });
 
-test("구버전에서 후보 덱만 저장된 사용자는 박사님 집 재입장 시 시험을 자동 재개한다", () => {
-  const startIndex = html.indexOf("function openEnglishProfessorHouse");
+test("후보 덱이 저장된 사용자는 실내에서 박사님에게 말을 걸면 시험을 자동 재개한다", () => {
+  const startIndex = html.indexOf("function openEnglishProfessorDesk");
   const endIndex = html.indexOf("function selectStarterDeck", startIndex);
   const professorHouseSource = html.slice(startIndex, endIndex);
 

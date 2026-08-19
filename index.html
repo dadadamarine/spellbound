@@ -1301,6 +1301,29 @@
   .world-control.down { grid-area: 3 / 2; }
   .world-control.action { border-color: #9a5a34; background: #4a2f1f; color: #ffd98f; }
 
+  #professor-house-canvas {
+    display: block; width: 100%; height: 100%; outline: none;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+  }
+  #professor-house-canvas:focus-visible {
+    box-shadow: inset 0 0 0 3px rgba(255,244,163,.75);
+  }
+  .professor-house-scroll {
+    background: #8b6a45;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(51,31,20,.12) 0 2px, transparent 2px 16px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.04) 0 2px, transparent 2px 48px);
+  }
+  .professor-house-controls {
+    display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px);
+    gap: 3px; justify-content: center;
+  }
+  .professor-house-controls .world-control.up { grid-area: 1 / 2; }
+  .professor-house-controls .world-control.left { grid-area: 2 / 1; }
+  .professor-house-controls .world-control.action { grid-area: 2 / 2; }
+  .professor-house-controls .world-control.right { grid-area: 2 / 3; }
+  .professor-house-controls .world-control.down { grid-area: 3 / 2; }
+
   @media (max-width: 700px) {
     .world-layout { grid-template-columns: 1fr; }
     .world-side { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
@@ -1578,6 +1601,45 @@
       </aside>
     </div>
     <div class="map-tip"><b>이동</b> 방향키 / WASD　 <b>조사</b> Enter / Space　 <b>유물</b> R</div>
+  </div>
+
+  <!-- ============ ENGLISH PROFESSOR HOUSE ============ -->
+  <div id="professor-house" class="screen">
+    <div class="map-hud">
+      <div class="left">
+        <span class="pill"><b>PLACE</b><span>영어박사님 집</span></span>
+        <span class="pill gold"><b>DECK</b><span id="professor-house-deck-count">0</span></span>
+      </div>
+      <div class="map-hud-actions">
+        <button type="button" class="deck-view-button" onclick="openCollectionViewer()">도감</button>
+        <button type="button" class="deck-view-button" onclick="openDeckViewer()">내 덱</button>
+      </div>
+    </div>
+    <div class="world-layout">
+      <div class="world-shell">
+        <div class="map-scroll professor-house-scroll">
+          <canvas id="professor-house-canvas" width="640" height="416" tabindex="0"
+                  aria-label="영어박사님 집 내부. 방향키나 WASD로 이동하고 Enter 또는 Space로 대화하거나 덱을 조사합니다."></canvas>
+          <div class="world-place">PROFESSOR'S HOUSE</div>
+          <div class="world-message" id="professor-house-message" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+      <aside class="world-side" aria-label="영어박사님 집 조작 안내">
+        <div class="world-objective">
+          <small>INSIDE</small>
+          <b>박사님과 덱을 조사하세요</b>
+          <span id="professor-house-objective">박사님 또는 덱 앞에서 Enter를 누르세요. 아래쪽 문으로 나갈 수 있습니다.</span>
+        </div>
+        <div class="professor-house-controls">
+          <button type="button" class="world-control up" aria-label="실내에서 위로 이동" onclick="moveProfessorHouse('up')">▲</button>
+          <button type="button" class="world-control left" aria-label="실내에서 왼쪽으로 이동" onclick="moveProfessorHouse('left')">◀</button>
+          <button type="button" class="world-control action" aria-label="실내에서 상호작용" onclick="interactProfessorHouse()">A</button>
+          <button type="button" class="world-control right" aria-label="실내에서 오른쪽으로 이동" onclick="moveProfessorHouse('right')">▶</button>
+          <button type="button" class="world-control down" aria-label="실내에서 아래로 이동" onclick="moveProfessorHouse('down')">▼</button>
+        </div>
+      </aside>
+    </div>
+    <div class="map-tip"><b>이동</b> 방향키 / WASD　 <b>대화·조사</b> Enter / Space　 <b>나가기</b> 아래쪽 문 / Esc</div>
   </div>
 
   <!-- ============ BATTLE ============ -->
@@ -2842,7 +2904,7 @@ function startGame(){
     powerUp: false, extraHint: 0,
     hasteStacks: 0,
     skips: 0, skipsMax: 0, skipped: 0,
-    gold: 0, relics: [], floors: null, floorIdx: 0, cleared: [], world: null,
+    gold: 0, relics: [], floors: null, floorIdx: 0, cleared: [], world: null, professorHouse: null,
     wordGameProgress,
     deck: wordGameProgress.decks[LANG].slice(),
     collectionKeys: wordGameProgress.collections[LANG].slice(),
@@ -3943,6 +4005,40 @@ const WORLD_TREE_COORDINATES = new Set([
   "21,18", "22,18", "23,18", "21,19", "23,19", "21,20", "22,20", "23,20"
 ]);
 let worldMessageTimer = null;
+let professorHouseMessageTimer = null;
+
+const PROFESSOR_HOUSE_TILE_SIZE = 48;
+const PROFESSOR_HOUSE_ORIGIN = Object.freeze({ x: 32, y: 16 });
+const PROFESSOR_HOUSE_COLUMNS = 12;
+const PROFESSOR_HOUSE_ROWS = 8;
+const PROFESSOR_HOUSE_DOOR = Object.freeze({ x: 6, y: 7 });
+const PROFESSOR_HOUSE_PROFESSOR = Object.freeze({ type: "professor", x: 6, y: 2 });
+const PROFESSOR_HOUSE_DECKS = Object.freeze([
+  Object.freeze({ type: "deck", id: "daily", name: "생활 덱", emblem: "🍎", color: "#b84e43", x: 3, y: 4 }),
+  Object.freeze({ type: "deck", id: "bond", name: "관계 덱", emblem: "💛", color: "#b38a36", x: 6, y: 4 }),
+  Object.freeze({ type: "deck", id: "adventure", name: "모험 덱", emblem: "🌉", color: "#47789b", x: 9, y: 4 })
+]);
+
+function createProfessorHouseState(){
+  return { x: 6, y: 6, direction: "up" };
+}
+
+function getProfessorHouseInteractableAt(x, y){
+  if(PROFESSOR_HOUSE_PROFESSOR.x === x && PROFESSOR_HOUSE_PROFESSOR.y === y)
+    return PROFESSOR_HOUSE_PROFESSOR;
+  return PROFESSOR_HOUSE_DECKS.find(deck => deck.x === x && deck.y === y) || null;
+}
+
+function isProfessorHousePositionBlocked(x, y){
+  if(x < 1 || x > PROFESSOR_HOUSE_COLUMNS - 2 || y < 1 || y > PROFESSOR_HOUSE_ROWS - 2)
+    return true;
+  return Boolean(getProfessorHouseInteractableAt(x, y));
+}
+
+function isProfessorHouseExitMove(house, direction){
+  return Boolean(house) && house.x === PROFESSOR_HOUSE_DOOR.x &&
+    house.y === PROFESSOR_HOUSE_DOOR.y - 1 && direction === "down";
+}
 
 function createWorldState(){
   return { x: 8, y: 22, direction: "up", steps: 0 };
@@ -4411,6 +4507,234 @@ function interactWorld(){
                 : terrain === "tree" ? "오래된 나무다. 잎사귀 사이로 빛이 비칩니다."
                 : "특별한 것은 보이지 않습니다.";
   showWorldMessage(message, 2200);
+}
+
+function getProfessorHouseScreenPoint(x, y){
+  return {
+    x: PROFESSOR_HOUSE_ORIGIN.x + x * PROFESSOR_HOUSE_TILE_SIZE,
+    y: PROFESSOR_HOUSE_ORIGIN.y + y * PROFESSOR_HOUSE_TILE_SIZE
+  };
+}
+
+function drawProfessorHouseFloor(context, x, y){
+  const point = getProfessorHouseScreenPoint(x, y);
+  const tileSize = PROFESSOR_HOUSE_TILE_SIZE;
+  const isWall = x === 0 || y === 0 || x === PROFESSOR_HOUSE_COLUMNS - 1 || y === PROFESSOR_HOUSE_ROWS - 1;
+  if(isWall){
+    context.fillStyle = (x + y) % 2 === 0 ? "#385247" : "#31493f";
+    context.fillRect(point.x, point.y, tileSize, tileSize);
+    context.fillStyle = "#24372f";
+    context.fillRect(point.x, point.y + tileSize - 6, tileSize, 6);
+    return;
+  }
+  context.fillStyle = (x + y) % 2 === 0 ? "#a47b4e" : "#9c7449";
+  context.fillRect(point.x, point.y, tileSize, tileSize);
+  context.fillStyle = "rgba(57,34,21,.22)";
+  context.fillRect(point.x, point.y + tileSize - 2, tileSize, 2);
+  context.fillRect(point.x + tileSize - 2, point.y, 2, tileSize);
+}
+
+function drawProfessorHouseFurniture(context){
+  const tileSize = PROFESSOR_HOUSE_TILE_SIZE;
+  const topLeft = getProfessorHouseScreenPoint(1, 1);
+  const roomWidth = (PROFESSOR_HOUSE_COLUMNS - 2) * tileSize;
+
+  context.fillStyle = "#72482f";
+  context.fillRect(topLeft.x + 8, topLeft.y + 5, 98, 32);
+  context.fillRect(topLeft.x + roomWidth - 106, topLeft.y + 5, 98, 32);
+  context.fillStyle = "#d5b86c";
+  for(let offset = 14; offset < 90; offset += 15){
+    context.fillRect(topLeft.x + offset, topLeft.y + 10, 7, 22);
+    context.fillRect(topLeft.x + roomWidth - 112 + offset, topLeft.y + 10, 7, 22);
+  }
+
+  const rug = getProfessorHouseScreenPoint(4, 5);
+  context.fillStyle = "#694252";
+  context.fillRect(rug.x + 4, rug.y + 5, tileSize * 4 - 8, tileSize - 10);
+  context.strokeStyle = "#d3a862";
+  context.lineWidth = 3;
+  context.strokeRect(rug.x + 9, rug.y + 10, tileSize * 4 - 18, tileSize - 20);
+
+  const desk = getProfessorHouseScreenPoint(5, 1);
+  context.fillStyle = "#61402b";
+  context.fillRect(desk.x, desk.y + 28, tileSize * 3, 18);
+  context.fillStyle = "#8c6039";
+  context.fillRect(desk.x + 4, desk.y + 22, tileSize * 3 - 8, 12);
+  context.fillStyle = "#f1e5bc";
+  context.fillRect(desk.x + 18, desk.y + 17, 31, 12);
+  context.fillStyle = "#7c3131";
+  context.fillRect(desk.x + 23, desk.y + 19, 21, 2);
+
+  const door = getProfessorHouseScreenPoint(PROFESSOR_HOUSE_DOOR.x, PROFESSOR_HOUSE_DOOR.y);
+  context.fillStyle = "#261d1a";
+  context.fillRect(door.x + 4, door.y, tileSize - 8, 18);
+  context.fillStyle = "#d4b06a";
+  context.fillRect(door.x + 9, door.y, tileSize - 18, 12);
+}
+
+function drawProfessorHouseProfessor(context){
+  const point = getProfessorHouseScreenPoint(PROFESSOR_HOUSE_PROFESSOR.x, PROFESSOR_HOUSE_PROFESSOR.y);
+  context.fillStyle = "#f0d2aa";
+  context.fillRect(point.x + 15, point.y + 8, 19, 18);
+  context.fillStyle = "#e8edf0";
+  context.fillRect(point.x + 10, point.y + 24, 29, 20);
+  context.fillStyle = "#4d7394";
+  context.fillRect(point.x + 20, point.y + 25, 9, 18);
+  context.fillStyle = "#eef3f2";
+  context.fillRect(point.x + 11, point.y + 4, 27, 8);
+  context.fillRect(point.x + 9, point.y + 8, 8, 12);
+  context.fillStyle = "#2d2925";
+  context.fillRect(point.x + 19, point.y + 16, 3, 3);
+  context.fillRect(point.x + 29, point.y + 16, 3, 3);
+}
+
+function drawProfessorHouseDeck(context, deck){
+  const point = getProfessorHouseScreenPoint(deck.x, deck.y);
+  context.fillStyle = "#3b2a22";
+  context.fillRect(point.x + 5, point.y + 24, 38, 20);
+  context.fillStyle = deck.color;
+  context.fillRect(point.x + 9, point.y + 9, 30, 25);
+  context.fillStyle = "#f2e7bd";
+  context.fillRect(point.x + 13, point.y + 13, 22, 17);
+  context.fillStyle = deck.color;
+  context.fillRect(point.x + 16, point.y + 16, 16, 11);
+  context.fillStyle = "#f6e6ad";
+  context.font = "bold 9px sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "bottom";
+  context.fillText(deck.name, point.x + 24, point.y + 8);
+}
+
+function drawProfessorHousePlayer(context, house){
+  const point = getProfessorHouseScreenPoint(house.x, house.y);
+  context.fillStyle = "rgba(35,25,20,.3)";
+  context.fillRect(point.x + 9, point.y + 37, 30, 7);
+  context.fillStyle = "#f1d1a4";
+  context.fillRect(point.x + 15, point.y + 10, 19, 19);
+  context.fillStyle = "#354c70";
+  context.fillRect(point.x + 11, point.y + 27, 27, 17);
+  context.fillStyle = "#ca493f";
+  context.fillRect(point.x + 10, point.y + 5, 29, 8);
+  context.fillStyle = "#263346";
+  context.fillRect(point.x + 15, point.y + 3, 19, 5);
+  if(house.direction === "down"){
+    context.fillStyle = "#2b2521";
+    context.fillRect(point.x + 19, point.y + 18, 3, 3);
+    context.fillRect(point.x + 29, point.y + 18, 3, 3);
+  } else if(house.direction === "left" || house.direction === "right"){
+    context.fillStyle = "#2b2521";
+    context.fillRect(point.x + (house.direction === "left" ? 16 : 32), point.y + 18, 3, 3);
+  } else {
+    context.fillStyle = "#263346";
+    context.fillRect(point.x + 14, point.y + 9, 21, 7);
+  }
+}
+
+function renderProfessorHouseInterior(){
+  if(!S || !S.professorHouse) return;
+  const canvas = $("professor-house-canvas");
+  if(!canvas) return;
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#1d2b25";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  for(let y = 0; y < PROFESSOR_HOUSE_ROWS; y++){
+    for(let x = 0; x < PROFESSOR_HOUSE_COLUMNS; x++) drawProfessorHouseFloor(context, x, y);
+  }
+  drawProfessorHouseFurniture(context);
+  drawProfessorHouseProfessor(context);
+  PROFESSOR_HOUSE_DECKS.forEach(deck => drawProfessorHouseDeck(context, deck));
+  drawProfessorHousePlayer(context, S.professorHouse);
+  canvas.dataset.houseX = S.professorHouse.x;
+  canvas.dataset.houseY = S.professorHouse.y;
+  canvas.dataset.direction = S.professorHouse.direction;
+  const deckCount = $("professor-house-deck-count");
+  if(deckCount) deckCount.textContent = S.deck ? S.deck.length : 0;
+  const objective = $("professor-house-objective");
+  if(objective){
+    const progress = S.wordGameProgress;
+    const story = progress && sanitizeStoryProgress(progress.story, false);
+    objective.textContent = !story || !story.flags.prologueSeen
+      ? "방 위쪽의 영어박사님에게 말을 걸어 사라진 편지를 확인하세요."
+      : progress.starterDeckId
+        ? "박사님과 대화하거나 아래쪽 문으로 모험을 계속하세요."
+        : progress.starterDeckCandidateId
+          ? "선택한 덱 또는 박사님에게 말을 걸어 시험을 이어가세요."
+          : "세 진열대 중 원하는 덱 앞에서 조사해 5문제 시험을 시작하세요.";
+  }
+}
+
+function showProfessorHouseMessage(message, durationMs){
+  const box = $("professor-house-message");
+  if(!box) return;
+  clearTimeout(professorHouseMessageTimer);
+  box.textContent = message;
+  box.classList.add("show");
+  professorHouseMessageTimer = setTimeout(() => box.classList.remove("show"), durationMs || 2600);
+}
+
+function moveProfessorHouse(direction){
+  if(!S || !S.professorHouse || !$("professor-house").classList.contains("active")) return;
+  if($("panel").classList.contains("show")) return;
+  const vector = WORLD_DIRECTIONS[direction];
+  if(!vector) return;
+  if(isProfessorHouseExitMove(S.professorHouse, direction)){
+    exitEnglishProfessorHouse();
+    return;
+  }
+  const nextX = S.professorHouse.x + vector.dx;
+  const nextY = S.professorHouse.y + vector.dy;
+  const facingHouse = Object.assign({}, S.professorHouse, { direction });
+  if(isProfessorHousePositionBlocked(nextX, nextY)){
+    S.professorHouse = facingHouse;
+    renderProfessorHouseInterior();
+    const interactable = getProfessorHouseInteractableAt(nextX, nextY);
+    if(interactable){
+      const label = interactable.type === "professor" ? "영어박사님" : interactable.name;
+      showProfessorHouseMessage(label + " 앞에서 Enter 또는 A 버튼을 누르세요.", 2200);
+    }
+    return;
+  }
+  S.professorHouse = Object.assign({}, facingHouse, { x: nextX, y: nextY });
+  renderProfessorHouseInterior();
+  const canvas = $("professor-house-canvas");
+  if(canvas) canvas.focus({ preventScroll: true });
+}
+
+function interactProfessorHouse(){
+  if(!S || !S.professorHouse || $("panel").classList.contains("show")) return;
+  const vector = WORLD_DIRECTIONS[S.professorHouse.direction];
+  const targetX = S.professorHouse.x + vector.dx;
+  const targetY = S.professorHouse.y + vector.dy;
+  const interactable = getProfessorHouseInteractableAt(targetX, targetY);
+  if(interactable && interactable.type === "professor"){
+    openEnglishProfessorDesk();
+    return;
+  }
+  if(interactable && interactable.type === "deck"){
+    openStarterDeckFromInterior(interactable.id);
+    return;
+  }
+  if(targetX === PROFESSOR_HOUSE_DOOR.x && targetY === PROFESSOR_HOUSE_DOOR.y){
+    exitEnglishProfessorHouse();
+    return;
+  }
+  showProfessorHouseMessage("가까이 다가가 정면을 보고 조사하세요.", 1800);
+}
+
+function exitEnglishProfessorHouse(){
+  if(!S) return;
+  clearWordAnswerTimer();
+  clearTimeout(professorHouseMessageTimer);
+  $("panel").classList.remove("show");
+  setProfessorPanelMode(false);
+  S.professorHouse = null;
+  showScreen("map");
+  renderMap();
+  showWorldMessage("영어박사님 집에서 나왔습니다.", 1800);
+  const canvas = $("world-canvas");
+  if(canvas) canvas.focus({ preventScroll: true });
 }
 /* WORLD MAP LOGIC END */
 
@@ -5107,7 +5431,7 @@ function renderStoryPrologueScene(sceneIndex){
   $("pn-opts").innerHTML = scene.markup;
   $("pn-foot").innerHTML = safeIndex < 2
     ? '<button class="ov-btn" type="button" onclick="renderStoryPrologueScene(' + (safeIndex + 1) + ')">계속</button>'
-    : '<button class="ov-btn" type="button" onclick="completeStoryPrologue()">스타팅 덱 보기</button>';
+    : '<button class="ov-btn" type="button" onclick="completeStoryPrologue()">집 안의 덱 살펴보기</button>';
 }
 
 function completeStoryPrologue(){
@@ -5117,7 +5441,9 @@ function completeStoryPrologue(){
   });
   saveWordGameProgress(S.wordGameProgress);
   updateWorldMapHud();
-  renderStarterDeckChoices();
+  closeEnglishProfessorHouse();
+  renderProfessorHouseInterior();
+  showProfessorHouseMessage("세 진열대 중 원하는 덱 앞에서 Enter를 눌러 시험에 도전하세요.", 4200);
 }
 
 function buildStarterDeckChoiceMarkup(definition, selectedId, locked){
@@ -5204,16 +5530,35 @@ function confirmWordlandRestart(){
   renderStoryPrologueScene(0);
 }
 
-function openEnglishProfessorHouse(){
-  if(!S) return;
+function prepareEnglishProfessorPanel(){
   clearWordAnswerTimer();
   setDuelPanelMode(false);
   setProfessorPanelMode(true);
+  $("panel").classList.add("show");
+}
+
+function openEnglishProfessorHouse(){
+  if(!S) return;
+  clearWordAnswerTimer();
+  $("panel").classList.remove("show");
+  setDuelPanelMode(false);
+  setProfessorPanelMode(false);
+  S.professorHouse = createProfessorHouseState();
+  showScreen("professor-house");
+  AUDIO.scene("map");
+  renderProfessorHouseInterior();
+  showProfessorHouseMessage("영어박사님과 세 개의 덱이 기다리고 있습니다.", 3200);
+  const canvas = $("professor-house-canvas");
+  if(canvas) canvas.focus({ preventScroll: true });
+}
+
+function openEnglishProfessorDesk(){
+  if(!S || !S.professorHouse) return;
+  prepareEnglishProfessorPanel();
   const candidateId = S.wordGameProgress.starterDeckCandidateId || null;
   S.pendingStarterDeckId = candidateId;
   S.starterDeckExam = null;
   S.passedStarterDeckId = null;
-  $("panel").classList.add("show");
   if(!sanitizeStoryProgress(S.wordGameProgress.story, false).flags.prologueSeen){
     renderStoryPrologueScene(0);
     return;
@@ -5223,6 +5568,33 @@ function openEnglishProfessorHouse(){
     return;
   }
   renderStarterDeckChoices();
+}
+
+function openStarterDeckFromInterior(starterDeckId){
+  if(!S || !S.professorHouse || !isKnownStarterDeckId(starterDeckId)) return;
+  const progress = S.wordGameProgress;
+  const story = sanitizeStoryProgress(progress.story, false);
+  if(!story.flags.prologueSeen){
+    showProfessorHouseMessage("먼저 방 위쪽의 영어박사님에게 말을 걸어 주세요.", 3000);
+    return;
+  }
+  if(progress.starterDeckId){
+    openEnglishProfessorDesk();
+    return;
+  }
+  const candidateId = progress.starterDeckCandidateId;
+  if(candidateId && candidateId !== starterDeckId){
+    const candidate = PROFESSOR_HOUSE_DECKS.find(deck => deck.id === candidateId);
+    showProfessorHouseMessage((candidate ? candidate.name : "선택한 덱") +
+      " 시험이 진행 중입니다. 해당 덱 또는 박사님에게 말을 걸어 주세요.", 3600);
+    return;
+  }
+  prepareEnglishProfessorPanel();
+  S.pendingStarterDeckId = candidateId || starterDeckId;
+  S.starterDeckExam = null;
+  S.passedStarterDeckId = null;
+  if(candidateId) startStarterDeckExam(candidateId);
+  else selectStarterDeck(starterDeckId);
 }
 
 function selectStarterDeck(starterDeckId){
@@ -5344,7 +5716,7 @@ function confirmStarterDeckChoice(starterDeckId){
       STARTER_DECK_SIZE + "장</b>을 네 덱과 도감에 등록했다.") +
     '<div class="starter-exam-result"><b>' + STARTER_DECK_SIZE + ' CARDS</b>덱과 도감 등록 완료<br>' +
     '첫 임무: 마을 풀숲에서 신규 단어 3개 포획</div></div>';
-  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">모험 시작</button>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">실내로 돌아가기</button>';
 }
 
 function chooseDifferentStarterDeckAfterPass(starterDeckId){
@@ -5366,7 +5738,9 @@ function closeEnglishProfessorHouse(){
   }
   setProfessorPanelMode(false);
   $("panel").classList.remove("show");
-  const canvas = $("world-canvas");
+  if(S && S.professorHouse) renderProfessorHouseInterior();
+  const canvas = $("professor-house").classList.contains("active")
+    ? $("professor-house-canvas") : $("world-canvas");
   if(canvas) canvas.focus({ preventScroll: true });
 }
 
@@ -7004,6 +7378,24 @@ function renderShop(goods, sold){
 
 /* ============ INPUT ============ */
 document.addEventListener("keydown", e => {
+  if($("professor-house").classList.contains("active") && S){
+    const open = $("panel").classList.contains("show");
+    if(e.key === "Escape"){
+      e.preventDefault();
+      if(open) closeEnglishProfessorHouse();
+      else exitEnglishProfessorHouse();
+      return;
+    }
+    const normalizedKey = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const direction = {
+      ArrowUp:"up", w:"up", ArrowDown:"down", s:"down",
+      ArrowLeft:"left", a:"left", ArrowRight:"right", d:"right"
+    }[normalizedKey];
+    if(direction && !open){ e.preventDefault(); moveProfessorHouse(direction); return; }
+    if((e.key === "Enter" || e.key === " ") && !open){
+      e.preventDefault(); interactProfessorHouse(); return;
+    }
+  }
   // 맵에서는 이동·조사 키를 먼저 처리해 전투 입력과 섞이지 않게 한다
   if($("map").classList.contains("active") && S){
     const open = $("panel").classList.contains("show");

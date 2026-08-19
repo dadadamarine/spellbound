@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "auditId": "SPELLBOUND-CORE",
+  "scope": "Wordland 핵심 사용자 플로우와 영어박사님 집 실내 진입",
+  "run": {
+    "sourceSha": "66ba50cfc07b9c6d47276276e46123661c69cf15+working-tree",
+    "platform": "web-desktop",
+    "environment": "Chromium in-app browser, http://127.0.0.1:8798/index.html, 2026-08-19 KST",
+    "dataPolicy": "별도 localhost origin의 테스트 저장만 사용. 배포 저장과 외부 사용자 데이터는 변경하지 않음."
+  },
+  "flows": [
+    {
+      "id": "FLOW-01",
+      "name": "첫 진입과 스타팅 덱 획득",
+      "actor": "신규 로컬 사용자",
+      "priority": "P0",
+      "job": "영어박사님 집에 들어가 첫 25장 덱을 획득한다",
+      "entry": "새싹마을 월드맵, 빈 덱",
+      "preconditions": ["새 localhost origin", "저장된 스타팅 덱 없음"],
+      "successCriteria": ["문 앞이 아닌 실내 맵으로 전환됨", "시험 성공 뒤 덱과 도감에 25장이 등록됨", "새로고침 뒤 후보 시험을 재개할 수 있음"],
+      "status": "verified",
+      "stepIds": ["FLOW-01-S01", "FLOW-01-S02", "FLOW-01-S03", "FLOW-01-S04"],
+      "limitationIds": []
+    },
+    {
+      "id": "FLOW-02",
+      "name": "야생 단어 포획과 복구",
+      "actor": "스타팅 덱 보유 사용자",
+      "priority": "P0",
+      "job": "아는 단어는 직접 포획하고 모르는 단어는 덱 학습으로 포획한다",
+      "entry": "새싹마을 풀숲",
+      "preconditions": ["25장 이상 덱", "스타팅 덱 확정"],
+      "successCriteria": ["직접 정답 시 카드가 추가됨", "오답 뒤 90% 복구시험 성공 시 카드가 추가됨", "복구시험 실패 시 카드가 추가되지 않음"],
+      "status": "verified",
+      "stepIds": ["FLOW-02-S01", "FLOW-02-S02", "FLOW-02-S03", "FLOW-02-S04"],
+      "limitationIds": []
+    },
+    {
+      "id": "FLOW-03",
+      "name": "카드정리소 시험과 제거",
+      "actor": "50장 덱 사용자",
+      "priority": "P0",
+      "job": "학습한 카드 한 장을 안전하게 덱에서 제거한다",
+      "entry": "카드정리소 문 앞",
+      "preconditions": ["덱 50장 이상"],
+      "successCriteria": ["현재 덱의 10%를 시험함", "80% 미만이면 덱 유지", "80% 이상이면 정답 카드만 제거 가능", "제거 뒤 도감 기록 유지"],
+      "status": "verified",
+      "stepIds": ["FLOW-03-S01", "FLOW-03-S02", "FLOW-03-S03", "FLOW-03-S04"],
+      "limitationIds": []
+    },
+    {
+      "id": "FLOW-04",
+      "name": "명예의 전당 랭크 대결",
+      "actor": "25장 이상 덱 사용자",
+      "priority": "P0",
+      "job": "MockUser와 5라운드를 치르고 레이팅과 전적을 저장한다",
+      "entry": "명예의 전당",
+      "preconditions": ["5라운드에 필요한 25장 이상 덱"],
+      "successCriteria": ["승리 +25", "무승부 +10", "패배 -25", "새로고침 뒤 전적과 레이팅 유지"],
+      "status": "verified",
+      "stepIds": ["FLOW-04-S01", "FLOW-04-S02", "FLOW-04-S03", "FLOW-04-S04"],
+      "limitationIds": []
+    },
+    {
+      "id": "FLOW-05",
+      "name": "메인 스토리 진행",
+      "actor": "모험 사용자",
+      "priority": "P0",
+      "job": "새싹마을과 기억의 숲의 사라진 단어를 복구한다",
+      "entry": "영어박사님 프롤로그",
+      "preconditions": ["신규 스토리 저장"],
+      "successCriteria": ["첫 3장 포획 뒤 백지 장벽 해제", "스토리 라이벌전 뒤 기억의 숲 진입", "bread·friend·bridge·courage 복구", "박사님 귀환 목표로 전환"],
+      "status": "verified",
+      "stepIds": ["FLOW-05-S01", "FLOW-05-S02", "FLOW-05-S03", "FLOW-05-S04"],
+      "limitationIds": []
+    },
+    {
+      "id": "FLOW-06",
+      "name": "저장 초기화와 재시작",
+      "actor": "기존 저장 사용자",
+      "priority": "P0",
+      "job": "경고를 확인한 뒤 새 모험으로 안전하게 초기화한다",
+      "entry": "영어박사님 대화",
+      "preconditions": ["기존 덱과 도감이 저장됨"],
+      "successCriteria": ["취소 시 저장 유지", "확정 시 덱·도감·스토리·랭크 초기화", "세 스타팅 덱을 다시 선택 가능"],
+      "status": "verified",
+      "stepIds": ["FLOW-06-S01", "FLOW-06-S02"],
+      "limitationIds": []
+    },
+    {
+      "id": "FLOW-07",
+      "name": "덱과 도감의 다중 예문 조회",
+      "actor": "카드 수집 사용자",
+      "priority": "P1",
+      "job": "같은 단어의 뜻과 예문별 카드를 구분해 확인한다",
+      "entry": "월드맵 도감·내 덱 버튼",
+      "preconditions": ["picture 예문 카드 수집"],
+      "successCriteria": ["도감이 뜻→예문 계층을 표시함", "동일 표제어의 서로 다른 예문 카드가 덱에 각각 표시됨"],
+      "status": "verified",
+      "stepIds": ["FLOW-07-S01", "FLOW-07-S02"],
+      "limitationIds": []
+    }
+  ],
+  "steps": [
+    {"id":"FLOW-01-S01","flowId":"FLOW-01","name":"집 문 조사","expected":"영어박사님 집 실내 맵 전환","observed":"패널 없이 전용 실내 캔버스로 전환, 플레이어가 남쪽 문 안에 배치됨","status":"verified","captureIds":["C-01"],"interactionIds":["I-01"]},
+    {"id":"FLOW-01-S02","flowId":"FLOW-01","name":"박사님·덱 상호작용","expected":"가까이 접근한 대상만 대화 또는 시험 시작","observed":"박사님 프롤로그 완료 후 관계 덱 진열대에서 5문제 시험 시작","status":"verified","captureIds":[],"interactionIds":["I-02"]},
+    {"id":"FLOW-01-S03","flowId":"FLOW-01","name":"실패·재접속 복구","expected":"0/5 실패 후 재시험, 새로고침 뒤 후보 유지","observed":"실패 화면과 재시험 CTA 확인, 새로고침 후 박사 대화에서 1/5부터 재개","status":"verified","captureIds":[],"interactionIds":["I-03"]},
+    {"id":"FLOW-01-S04","flowId":"FLOW-01","name":"덱 확정","expected":"통과 뒤 최종 선택 시 25장 등록","observed":"5/5 통과 후 관계 덱 25장이 덱·도감에 등록되고 실내로 복귀","status":"verified","captureIds":[],"interactionIds":["I-04"]},
+
+    {"id":"FLOW-02-S01","flowId":"FLOW-02","name":"시간초과","expected":"7초 뒤 복구 선택 제공","observed":"moon 시간초과 뒤 10문제 복구시험 또는 보내기 제공","status":"verified","captureIds":[],"interactionIds":["I-05"]},
+    {"id":"FLOW-02-S02","flowId":"FLOW-02","name":"복구 실패","expected":"90% 미만이면 미포획","observed":"0/10에서 moon 미포획과 재탐색 안내","status":"verified","captureIds":[],"interactionIds":["I-06"]},
+    {"id":"FLOW-02-S03","flowId":"FLOW-02","name":"직접 포획","expected":"첫 정답 즉시 덱·도감 등록","observed":"picture 정답 뒤 덱 25→26, 첫 포획 1/3","status":"verified","captureIds":[],"interactionIds":["I-07"]},
+    {"id":"FLOW-02-S04","flowId":"FLOW-02","name":"복구 성공","expected":"9/10 이상이면 목표 카드 등록","observed":"rice 오답 뒤 9/10 통과, 덱 26→27","status":"verified","captureIds":[],"interactionIds":["I-08"]},
+
+    {"id":"FLOW-03-S01","flowId":"FLOW-03","name":"50장 게이트","expected":"50장부터 5문제 시험 가능","observed":"실제 포획으로 덱 50장을 만든 뒤 10%=5문제 안내 확인","status":"verified","captureIds":[],"interactionIds":["I-09"]},
+    {"id":"FLOW-03-S02","flowId":"FLOW-03","name":"정리 실패","expected":"80% 미만이면 카드 유지","observed":"0/5 실패 뒤 덱 50장 유지","status":"verified","captureIds":[],"interactionIds":["I-10"]},
+    {"id":"FLOW-03-S03","flowId":"FLOW-03","name":"정리 성공","expected":"정답 카드 중 한 장 제거","observed":"5/5 통과 뒤 father 선택, 덱 50→49","status":"verified","captureIds":[],"interactionIds":["I-11"]},
+    {"id":"FLOW-03-S04","flowId":"FLOW-03","name":"도감 보존","expected":"덱 제거와 무관하게 도감 유지","observed":"father 제거 뒤 도감 48단어·예문 카드 50장 유지","status":"verified","captureIds":[],"interactionIds":["I-12"]},
+
+    {"id":"FLOW-04-S01","flowId":"FLOW-04","name":"MockUser 매칭","expected":"5라운드 랜덤 손패와 상대 문제","observed":"라운드마다 새 5장과 서로 다른 문제가 표시됨","status":"verified","captureIds":[],"interactionIds":["I-13"]},
+    {"id":"FLOW-04-S02","flowId":"FLOW-04","name":"승리·무승부","expected":"5:4 승리 +25, 4:4 무승부 +10","observed":"1000→1025→1035","status":"verified","captureIds":[],"interactionIds":["I-14"]},
+    {"id":"FLOW-04-S03","flowId":"FLOW-04","name":"패배","expected":"3:4 패배 -25","observed":"1035→1010","status":"verified","captureIds":[],"interactionIds":["I-15"]},
+    {"id":"FLOW-04-S04","flowId":"FLOW-04","name":"전적 저장","expected":"재접속 뒤 결과 유지","observed":"새로고침 후 RATING 1010, 1승 1패 1무","status":"verified","captureIds":[],"interactionIds":["I-16"]},
+
+    {"id":"FLOW-05-S01","flowId":"FLOW-05","name":"마을 복구","expected":"신규 3장 뒤 백지 장벽 해제","observed":"표지판이 단계 복구되고 백지단 장면 뒤 1번 길 개방","status":"verified","captureIds":[],"interactionIds":["I-17"]},
+    {"id":"FLOW-05-S02","flowId":"FLOW-05","name":"첫 라이벌전","expected":"비랭크 5라운드 후 숲 목표","observed":"5:4 승리, 레이팅 1000 유지, 기억의 숲 목표 전환","status":"verified","captureIds":[],"interactionIds":["I-18"]},
+    {"id":"FLOW-05-S03","flowId":"FLOW-05","name":"숲 주민 복구","expected":"bread·friend·bridge 3개 복구","observed":"세 NPC 직접 정답 후 진행 3/3 및 숲 중심 개방","status":"verified","captureIds":[],"interactionIds":["I-19"]},
+    {"id":"FLOW-05-S04","flowId":"FLOW-05","name":"라이벌 기억 복구","expected":"courage 복구 후 박사 귀환","observed":"courage 카드 덱 등록, 흰 기록 조각과 박사 귀환 목표 표시","status":"verified","captureIds":[],"interactionIds":["I-20"]},
+
+    {"id":"FLOW-06-S01","flowId":"FLOW-06","name":"초기화 경고·취소","expected":"영향 범위 공개 후 취소 가능","observed":"덱·도감·스토리·랭크 삭제 경고, 취소 시 기존 저장 유지","status":"verified","captureIds":[],"interactionIds":["I-21"]},
+    {"id":"FLOW-06-S02","flowId":"FLOW-06","name":"초기화 확정","expected":"기본 진행으로 복귀","observed":"확정 뒤 빈 덱·프롤로그·세 덱 선택 상태 확인","status":"verified","captureIds":[],"interactionIds":["I-22"]},
+
+    {"id":"FLOW-07-S01","flowId":"FLOW-07","name":"도감 계층 조회","expected":"picture의 뜻과 예문 카드 수 표시","observed":"뜻 2개, 예문 4개, 수집 3개를 뜻별로 표시","status":"verified","captureIds":["C-02"],"interactionIds":["I-23"]},
+    {"id":"FLOW-07-S02","flowId":"FLOW-07","name":"덱 변형 카드 조회","expected":"동일 표제어의 별도 카드 표시","observed":"picture 카드 3장이 그림/사진 및 서로 다른 예문으로 분리 표시","status":"verified","captureIds":["C-03"],"interactionIds":["I-24"]}
+  ],
+  "interactions": [
+    {"id":"I-01","action":"월드에서 박사님 집 문을 조사","from":"새싹마을 (5,21)","to":"영어박사님 집 실내 (6,6)","timestamp":"2026-08-19T15:10:00+0900"},
+    {"id":"I-02","action":"박사 대화 후 관계 덱 조사","from":"실내 탐색","to":"스타팅 덱 5문제 시험","timestamp":"2026-08-19T15:12:00+0900"},
+    {"id":"I-03","action":"시험 실패, 새로고침, 박사 재대화","from":"0/5 실패","to":"후보 덱 시험 재개","timestamp":"2026-08-19T15:14:00+0900"},
+    {"id":"I-04","action":"5/5 통과 후 이 덱으로 시작","from":"시험 결과","to":"25장 등록·실내 복귀","timestamp":"2026-08-19T15:16:00+0900"},
+    {"id":"I-05","action":"moon 입력 없이 7초 대기","from":"야생 단어","to":"복구시험 선택","timestamp":"2026-08-19T15:18:00+0900"},
+    {"id":"I-06","action":"복구시험 10문제 오답","from":"복구시험","to":"포획 실패","timestamp":"2026-08-19T15:19:00+0900"},
+    {"id":"I-07","action":"picture 직접 정답","from":"야생 단어","to":"포획 성공·덱 26","timestamp":"2026-08-19T15:20:00+0900"},
+    {"id":"I-08","action":"rice 오답 후 복구시험 9/10","from":"복구시험","to":"포획 성공·덱 27","timestamp":"2026-08-19T15:21:00+0900"},
+    {"id":"I-09","action":"추가 22장 실제 포획 후 카드정리소 입장","from":"덱 28","to":"덱 50·5문제 시험","timestamp":"2026-08-19T15:28:00+0900"},
+    {"id":"I-10","action":"정리시험 0/5","from":"카드정리 시험","to":"실패·덱 유지","timestamp":"2026-08-19T15:29:00+0900"},
+    {"id":"I-11","action":"정리시험 5/5 후 father 제거","from":"정답 카드 선택","to":"덱 49","timestamp":"2026-08-19T15:30:00+0900"},
+    {"id":"I-12","action":"제거 후 HUD 확인","from":"덱 49","to":"도감 예문 카드 50 유지","timestamp":"2026-08-19T15:30:10+0900"},
+    {"id":"I-13","action":"MockUser 매칭","from":"명예의 전당","to":"5라운드 대결","timestamp":"2026-08-19T15:33:00+0900"},
+    {"id":"I-14","action":"5/5 뒤 4/5 입력","from":"레이팅 1000","to":"레이팅 1035","timestamp":"2026-08-19T15:35:00+0900"},
+    {"id":"I-15","action":"3/5 입력","from":"레이팅 1035","to":"레이팅 1010","timestamp":"2026-08-19T15:36:00+0900"},
+    {"id":"I-16","action":"새로고침 후 명예의 전당 재입장","from":"대결 결과","to":"1승 1패 1무·1010","timestamp":"2026-08-19T15:37:00+0900"},
+    {"id":"I-17","action":"첫 3장 포획과 백지단 장면 완료","from":"마을 0/3","to":"1번 길 개방","timestamp":"2026-08-19T15:23:00+0900"},
+    {"id":"I-18","action":"스토리 라이벌 5라운드","from":"1번 길 장벽","to":"기억의 숲 목표","timestamp":"2026-08-19T15:32:00+0900"},
+    {"id":"I-19","action":"제빵사·아이·길잡이 문제 직접 정답","from":"숲 기억 0/3","to":"숲 기억 3/3","timestamp":"2026-08-19T15:40:00+0900"},
+    {"id":"I-20","action":"courage 직접 정답","from":"쓰러진 라이벌","to":"박사 귀환 목표","timestamp":"2026-08-19T15:42:00+0900"},
+    {"id":"I-21","action":"새 모험 시작 경고에서 취소","from":"기존 50장 저장","to":"저장 유지","timestamp":"2026-08-19T14:40:00+0900"},
+    {"id":"I-22","action":"새 모험 초기화 확정","from":"기존 저장","to":"빈 덱·프롤로그","timestamp":"2026-08-19T14:42:00+0900"},
+    {"id":"I-23","action":"도감에서 picture 그룹 조회","from":"도감 52단어","to":"2뜻·4예문 계층","timestamp":"2026-08-19T15:44:00+0900"},
+    {"id":"I-24","action":"내 덱에서 picture 행 조회","from":"덱 53장","to":"서로 다른 picture 카드 3장","timestamp":"2026-08-19T15:45:00+0900"}
+  ],
+  "captures": [
+    {"id":"C-01","file":"flows/flow-01-professor-house.png","flowId":"FLOW-01","stepId":"FLOW-01-S01","timestamp":"2026-08-19T15:10:10+0900","sha256":"624a4261892984343f480c35d9b756efaace76f3cb6ee0c6c1604ceba21285f2"},
+    {"id":"C-02","file":"flows/flow-08-collection-variants.png","flowId":"FLOW-07","stepId":"FLOW-07-S01","timestamp":"2026-08-19T15:45:10+0900","sha256":"23e0323176e34fe0290c060fa80677077b7fe8f5628de377f52387ae5d508376"},
+    {"id":"C-03","file":"flows/flow-08-deck-variants.png","flowId":"FLOW-07","stepId":"FLOW-07-S02","timestamp":"2026-08-19T15:44:50+0900","sha256":"3b82685713c97eacec08bb31e021270572a8e750e9c898995d8ca790e8a452de"}
+  ],
+  "findings": [
+    {
+      "id": "FLOW-F-01",
+      "type": "expectation-gap",
+      "severity": "high",
+      "title": "영어박사님 집 문 조사 시 실내 이동 없이 대화 모달이 열림",
+      "flowIds": ["FLOW-01"],
+      "stepIds": ["FLOW-01-S01"],
+      "captureIds": ["C-01"],
+      "interactionIds": ["I-01"],
+      "recommendation": "전용 실내 맵으로 진입한 뒤 박사님과 덱을 공간 안의 상호작용 대상으로 제공한다.",
+      "completionEvidence": "현재 빌드에서 문 조사 후 professor-house 화면으로 전환되고, 남쪽 문 퇴장·박사·세 덱 좌표 상호작용이 브라우저와 자동 테스트로 확인됨."
+    }
+  ],
+  "limitations": [],
+  "backlog": []
+}
