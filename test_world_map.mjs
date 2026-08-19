@@ -37,6 +37,12 @@ test("맵 화면에 캔버스와 방향 조작 버튼이 존재한다", () => {
   assert.equal(html.includes('aria-label="상호작용"'), true, "상호작용 버튼이 있어야 한다");
 });
 
+test("게임 속 세계 이름은 Wordland로 표시된다", () => {
+  assert.match(html, /<em>WORDLAND<\/em>/);
+  assert.match(html, /<b>WORDLAND<\/b>\s*&nbsp;\/&nbsp;\s*단어의 세계/);
+  assert.match(html, /aria-label="Wordland 월드맵/);
+});
+
 test("맵 화면에서 현재 덱을 여는 버튼을 제공한다", () => {
   assert.match(html, /id="deck-view-button"/);
   assert.match(html, /onclick="openDeckViewer\(\)"/);
