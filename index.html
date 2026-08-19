@@ -816,9 +816,11 @@
   .duel-battlefield.exchange .player .duel-avatar-core { animation: duelAttackRight .72s ease both; }
   .duel-battlefield.exchange .player-spell { animation: duelSpellRight .72s ease .12s both; }
   .duel-battlefield.exchange .opponent.dodge .duel-avatar-core { animation: duelDodge .78s ease .34s both; }
-  .duel-battlefield.resolved.answer-wrong .opponent .duel-avatar-core { animation: duelAttackLeft .72s ease both; }
-  .duel-battlefield.resolved.answer-wrong .opponent-spell { animation: duelSpellLeft .72s ease .12s both; }
-  .duel-battlefield.resolved.answer-correct .player .duel-avatar-core { animation: duelCorrectPose .85s ease both; }
+  .duel-battlefield.resolved .opponent .duel-avatar-core { animation: duelAttackLeft .72s ease both; }
+  .duel-battlefield.resolved .opponent-spell { animation: duelSpellLeft .72s ease .12s both; }
+  .duel-battlefield.resolved.answer-correct .player.dodge .duel-avatar-core {
+    animation: duelDodgePlayer .78s ease .34s both;
+  }
   .duel-battlefield .duel-combatant.hit .duel-avatar { animation: duelHit .5s ease .55s both; }
   .duel-battlefield.exchange .duel-combatant.opponent.hit .duel-avatar { animation-delay: .6s; }
   .duel-battlefield.exchange .duel-combatant.player.hit .duel-avatar { animation-delay: 1.55s; }
@@ -829,26 +831,17 @@
     content: ""; position: absolute; inset: -12px; border: 3px solid var(--gold); border-radius: 50%;
     box-shadow: 0 0 24px rgba(207,160,74,.7); opacity: .8;
   }
-  .duel-correct-burst {
-    position: absolute; z-index: 8; left: 50%; top: 43%; width: 104px; height: 104px;
-    display: grid; place-items: center; border-radius: 50%;
-    color: #eafff3; background: rgba(47,143,99,.28); border: 4px solid var(--ok);
-    box-shadow: 0 0 0 10px rgba(95,191,142,.12), 0 0 38px rgba(95,191,142,.9), inset 0 0 24px rgba(95,191,142,.5);
-    font-family: var(--mono); font-size: 42px; font-weight: 900; opacity: 0;
-    transform: translate(-50%, -50%) scale(.2);
-  }
-  .duel-correct-burst::after {
-    content: "CORRECT"; position: absolute; top: 108%; left: 50%; transform: translateX(-50%);
-    font-size: 10px; letter-spacing: .18em; color: #bff3d4; white-space: nowrap;
-  }
-  .duel-battlefield.resolved.answer-correct .duel-correct-burst { animation: duelCorrectBurst .82s ease both; }
   .duel-dodge-label {
     position: absolute; z-index: 8; right: 85px; top: 31%; padding: 4px 8px;
     color: #d9f6ff; background: rgba(5,35,46,.9); border: 1px solid var(--sky);
     font-family: var(--mono); font-size: 10px; font-weight: 900; letter-spacing: .14em;
     opacity: 0;
   }
-  .duel-battlefield.exchange .duel-dodge-label { animation: duelDodgeLabel .55s ease .5s both; }
+  .duel-battlefield.exchange .duel-dodge-label { animation: duelDodgeLabel 1.05s ease .45s both; }
+  .duel-dodge-label.player-dodge {
+    left: 85px; right: auto; color: #dfffee; background: rgba(18,70,48,.92); border-color: var(--ok);
+  }
+  .duel-battlefield.resolved.answer-correct .duel-dodge-label { animation: duelDodgeLabel 1.05s ease .45s both; }
   .duel-impact {
     position: absolute; z-index: 7; top: 34%; width: 56px; height: 56px; opacity: 0;
     background: radial-gradient(circle, #fff 0 12%, #ffd25f 13% 26%, #e8523d 27% 42%, transparent 43%);
@@ -917,9 +910,14 @@
     34% { transform: translate(34px,-15px) rotate(7deg); }
     62% { transform: translate(38px,-12px) rotate(4deg); filter: drop-shadow(-13px 8px 0 rgba(143,220,255,.2)); }
   }
+  @keyframes duelDodgePlayer {
+    0%,100% { transform: translate(0,0); }
+    34% { transform: translate(-34px,15px) rotate(-7deg); }
+    62% { transform: translate(-38px,12px) rotate(-4deg); filter: drop-shadow(13px -8px 0 rgba(95,191,142,.22)); }
+  }
   @keyframes duelDodgeLabel {
     0% { opacity: 0; transform: translateY(8px) scale(.7); }
-    40%,78% { opacity: 1; transform: translateY(-5px) scale(1.08); }
+    28%,84% { opacity: 1; transform: translateY(-5px) scale(1.08); }
     100% { opacity: 0; transform: translateY(-14px) scale(1); }
   }
   @keyframes duelHit {
@@ -936,17 +934,6 @@
   }
   @keyframes duelAnswerPop {
     to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes duelCorrectPose {
-    0%,100% { transform: translateY(0); filter: drop-shadow(0 0 0 rgba(95,191,142,0)); }
-    36% { transform: translateY(-13px) scale(1.05); filter: drop-shadow(0 0 16px rgba(95,191,142,.9)); }
-    58% { transform: translateY(-7px) scale(1.03); }
-  }
-  @keyframes duelCorrectBurst {
-    0% { opacity: 0; transform: translate(-50%, -50%) scale(.2) rotate(-25deg); }
-    42% { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(4deg); }
-    72% { opacity: 1; transform: translate(-50%, -50%) scale(.96) rotate(0); }
-    100% { opacity: .88; transform: translate(-50%, -50%) scale(1) rotate(0); }
   }
   @keyframes duelVictory {
     from { transform: translateY(0) rotate(-2deg); }
@@ -966,8 +953,8 @@
     .duel-spell { width: 50px; height: 50px; }
     .duel-spell.player-spell { left: 64px; }
     .duel-spell.opponent-spell { right: 64px; }
-    .duel-correct-burst { width: 88px; height: 88px; font-size: 36px; }
     .duel-dodge-label { right: 54px; }
+    .duel-dodge-label.player-dodge { left: 54px; right: auto; }
     .duel-battle-detail { padding: 10px; }
     .duel-battle-detail .collection-meaning { font-size: 21px; }
     @keyframes duelSpellRight {
@@ -4735,14 +4722,14 @@ function buildDuelBattlefieldMarkup(duel, stage, detailMarkup){
     opponentAnswer = buildDuelAnswerPopMarkup("상대 제출", duel.opponentSubmittedAnswer, duel.opponentWasCorrect);
     eventText = duel.opponent.displayName + "이(가) 문제를 제시했습니다. 답을 제출하면 판정됩니다.";
   } else if(phase === "resolved"){
-    playerState = duel.playerWasCorrect ? "success" : "hit";
+    playerState = duel.playerWasCorrect ? "dodge" : "hit";
     playerAnswer = buildDuelAnswerPopMarkup("내 제출", duel.playerSubmittedAnswer, duel.playerWasCorrect);
     opponentAnswer = buildDuelAnswerPopMarkup("상대 제출", duel.opponentSubmittedAnswer, duel.opponentWasCorrect);
+    effects = '<div class="duel-spell opponent-spell" aria-hidden="true">!</div>';
     if(duel.playerWasCorrect){
-      effects = '<div class="duel-correct-burst" aria-hidden="true">✓</div>';
-      eventText = "정답! 단어 주문을 완전히 해제했습니다.";
+      effects += '<div class="duel-dodge-label player-dodge" aria-hidden="true">DODGE ✓</div>';
+      eventText = "정답! 상대의 주문 공격을 회피했습니다.";
     } else {
-      effects = '<div class="duel-spell opponent-spell" aria-hidden="true">!</div>';
       impacts = '<div class="duel-impact on-player"></div>';
       eventText = duel.playerTimedOut ? "시간 초과! 상대의 주문 공격에 맞았습니다." :
         "오답! 상대의 주문 공격에 맞았습니다.";
