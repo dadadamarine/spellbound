@@ -25,7 +25,7 @@ function loadFacilityTestApi() {
     }
   };
   vm.runInNewContext(
-    `${source}\n;globalThis.__facilityTestApi = { canStartCardCleanup, getCardCleanupQuestionCount, getCardCleanupRequiredCorrect, getCorrectCleanupCards, removeCardFromDeck, canStartHallDuel, getDuelOutcome, getOpponentDuelOutcome, calculateRatingAfterDuel, getMatchedOpponentRating, createHallUser, createMockHallUser, doesHallUserAnswerCorrectly };`,
+    `${source}\n;globalThis.__facilityTestApi = { canStartCardCleanup, getCardCleanupQuestionCount, getCardCleanupRequiredCorrect, getCorrectCleanupCards, removeCardFromDeck, canStartHallDuel, getDuelOutcome, getOpponentDuelOutcome, calculateRatingAfterDuel, getMatchedOpponentRating, createHallUser, createMockHallUser, doesHallUserAnswerCorrectly, getMockHallSubmittedAnswer };`,
     sandbox
   );
   return sandbox.__facilityTestApi;
@@ -151,6 +151,26 @@ test("MOCK 사용자는 첫 라운드만 틀리고 나머지 네 라운드는 �
     [0, 1, 2, 3, 4].map(round => api.doesHallUserAnswerCorrectly(user, round)),
     [false, true, true, true, true]
   );
+});
+
+test("MOCK 사용자의 제출 답안은 첫 라운드만 오답이고 이후에는 실제 정답이다", () => {
+  const api = loadFacilityTestApi();
+  const user = api.createMockHallUser(1000, "LUMEN", []);
+  const card = { w: "house" };
+
+  assert.notEqual(api.getMockHallSubmittedAnswer(user, card, 0), "house");
+  assert.equal(api.getMockHallSubmittedAnswer(user, card, 1), "house");
+  assert.equal(api.getMockHallSubmittedAnswer(user, card, 4), "house");
+});
+
+test("대결 화면은 캐릭터·공격·피격·방어 애니메이션을 제공한다", () => {
+  assert.match(html, /class="duel-battlefield/);
+  assert.match(html, /duel-shot player-shot/);
+  assert.match(html, /@keyframes duelAttackRight/);
+  assert.match(html, /@keyframes duelShotLeft/);
+  assert.match(html, /@keyframes duelHit/);
+  assert.match(html, /@keyframes duelGuard/);
+  assert.match(html, /prefers-reduced-motion: reduce/);
 });
 
 test("대결용 손패는 라운드마다 새로 뽑고, 사용한 카드가 덱에 다시 안 돌아간다", () => {
