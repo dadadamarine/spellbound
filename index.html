@@ -2796,7 +2796,7 @@ function startGame(){
     wordGameProgress,
     deck: wordGameProgress.decks[LANG].slice(),
     collectionKeys: wordGameProgress.collections[LANG].slice(),
-    encounterWord: null, captureExam: null, cardCleanup: null, duel: null,
+    encounterWord: null, forestMemoryId: null, captureExam: null, cardCleanup: null, duel: null,
     pendingStarterDeckId: wordGameProgress.starterDeckCandidateId || null,
     starterDeckExam: null, passedStarterDeckId: null,
     lastEncounterStep: -999,
@@ -3620,19 +3620,24 @@ function endGame(victory){
    ===================================================================== */
 /* STORY PROGRESSION LOGIC START */
 const STORY_FIRST_CAPTURE_TARGET = 3;
+const FOREST_MEMORY_IDS = Object.freeze(["bread", "friend", "bridge"]);
 
 function createDefaultStoryProgress(){
   return {
     chapter: 0,
     questId: "meet_professor",
     questProgress: 0,
+    forestRecoveredWords: [],
     flags: {
       prologueSeen: false,
       starterChosen: false,
       villageRestored: false,
       whitePageSeen: false,
       routeUnlocked: false,
-      rivalBattleCompleted: false
+      rivalBattleCompleted: false,
+      forestArrivalSeen: false,
+      forestWordsRestored: false,
+      forestRivalRescued: false
     }
   };
 }
@@ -3642,13 +3647,17 @@ function createLegacyStoryProgress(){
     chapter: 2,
     questId: "enter_memory_forest",
     questProgress: STORY_FIRST_CAPTURE_TARGET,
+    forestRecoveredWords: [],
     flags: {
       prologueSeen: true,
       starterChosen: true,
       villageRestored: true,
       whitePageSeen: true,
       routeUnlocked: true,
-      rivalBattleCompleted: true
+      rivalBattleCompleted: true,
+      forestArrivalSeen: false,
+      forestWordsRestored: false,
+      forestRivalRescued: false
     }
   };
 }
@@ -3661,14 +3670,32 @@ function sanitizeStoryProgress(rawStory, useLegacyProgress){
   const questProgress = Math.max(0, Math.min(
     STORY_FIRST_CAPTURE_TARGET, Math.floor(Number(rawStory.questProgress) || 0)
   ));
+  const rawForestRecoveredWords = Array.isArray(rawStory.forestRecoveredWords)
+    ? rawStory.forestRecoveredWords : [];
+  let forestRecoveredWords = FOREST_MEMORY_IDS.filter(memoryId =>
+    rawForestRecoveredWords.includes(memoryId));
   const flags = {
     prologueSeen: Boolean(rawFlags.prologueSeen),
     starterChosen: Boolean(rawFlags.starterChosen),
     villageRestored: Boolean(rawFlags.villageRestored) || questProgress >= STORY_FIRST_CAPTURE_TARGET,
     whitePageSeen: Boolean(rawFlags.whitePageSeen),
     routeUnlocked: Boolean(rawFlags.routeUnlocked) || Boolean(rawFlags.whitePageSeen),
-    rivalBattleCompleted: Boolean(rawFlags.rivalBattleCompleted)
+    rivalBattleCompleted: Boolean(rawFlags.rivalBattleCompleted),
+    forestArrivalSeen: Boolean(rawFlags.forestArrivalSeen),
+    forestWordsRestored: Boolean(rawFlags.forestWordsRestored) ||
+      forestRecoveredWords.length >= FOREST_MEMORY_IDS.length,
+    forestRivalRescued: Boolean(rawFlags.forestRivalRescued)
   };
+  if(flags.forestWordsRestored){
+    flags.forestArrivalSeen = true;
+    forestRecoveredWords = FOREST_MEMORY_IDS.slice();
+  }
+  if(flags.forestRivalRescued){
+    flags.forestArrivalSeen = true;
+    flags.forestWordsRestored = true;
+    forestRecoveredWords = FOREST_MEMORY_IDS.slice();
+  }
+  if(flags.forestArrivalSeen) flags.rivalBattleCompleted = true;
   if(flags.rivalBattleCompleted){
     flags.prologueSeen = true;
     flags.starterChosen = true;
@@ -3683,7 +3710,10 @@ function sanitizeStoryProgress(rawStory, useLegacyProgress){
   if(flags.villageRestored) questId = "confront_white_page";
   if(flags.routeUnlocked) questId = "meet_rival";
   if(flags.rivalBattleCompleted){ questId = "enter_memory_forest"; chapter = 2; }
-  return { chapter, questId, questProgress, flags };
+  if(flags.forestArrivalSeen) questId = "restore_forest_words";
+  if(flags.forestWordsRestored) questId = "rescue_rival_memory";
+  if(flags.forestRivalRescued){ questId = "return_to_professor"; chapter = 3; }
+  return { chapter, questId, questProgress, forestRecoveredWords, flags };
 }
 
 function markStoryPrologueSeen(story){
@@ -3735,6 +3765,36 @@ function completeStoryRivalDuel(story){
   }), false);
 }
 
+function enterMemoryForestStory(story){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(!safeStory.flags.rivalBattleCompleted) return safeStory;
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    flags: Object.assign({}, safeStory.flags, { forestArrivalSeen: true })
+  }), false);
+}
+
+function recordForestMemoryForStory(story, memoryId){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(safeStory.questId !== "restore_forest_words" || !FOREST_MEMORY_IDS.includes(memoryId))
+    return safeStory;
+  if(safeStory.forestRecoveredWords.includes(memoryId)) return safeStory;
+  const forestRecoveredWords = safeStory.forestRecoveredWords.concat([memoryId]);
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    forestRecoveredWords,
+    flags: Object.assign({}, safeStory.flags, {
+      forestWordsRestored: forestRecoveredWords.length >= FOREST_MEMORY_IDS.length
+    })
+  }), false);
+}
+
+function completeForestRivalRescue(story){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(!safeStory.flags.forestWordsRestored) return safeStory;
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    flags: Object.assign({}, safeStory.flags, { forestRivalRescued: true })
+  }), false);
+}
+
 function isStoryRouteUnlocked(story){
   return sanitizeStoryProgress(story, false).flags.routeUnlocked;
 }
@@ -3744,6 +3804,17 @@ function shouldShowStoryRival(story){
   return flags.routeUnlocked && !flags.rivalBattleCompleted;
 }
 
+function shouldShowForestResident(story, memoryId){
+  const safeStory = sanitizeStoryProgress(story, false);
+  return FOREST_MEMORY_IDS.includes(memoryId) && safeStory.flags.forestArrivalSeen &&
+    !safeStory.forestRecoveredWords.includes(memoryId);
+}
+
+function shouldShowForestCenterRival(story){
+  const flags = sanitizeStoryProgress(story, false).flags;
+  return flags.forestWordsRestored && !flags.forestRivalRescued;
+}
+
 function getStoryObjective(story){
   const safeStory = sanitizeStoryProgress(story, false);
   if(safeStory.questId === "meet_professor") return "영어박사님 집에서 사라진 편지를 확인하세요.";
@@ -3751,7 +3822,11 @@ function getStoryObjective(story){
   if(safeStory.questId === "capture_first_three") return "새싹마을 풀숲에서 신규 단어를 포획하세요. " + safeStory.questProgress + " / " + STORY_FIRST_CAPTURE_TARGET;
   if(safeStory.questId === "confront_white_page") return "복구된 표지판 앞에서 백지단을 마주하세요.";
   if(safeStory.questId === "meet_rival") return "1번 길을 막은 라이벌과 첫 비랭크 대결을 치르세요.";
-  return "1번 길 너머 기억의 숲으로 들어가세요.";
+  if(safeStory.questId === "enter_memory_forest") return "1번 길 너머 기억의 숲으로 들어가세요.";
+  if(safeStory.questId === "restore_forest_words") return "숲 주민의 사라진 단어를 복구하세요. " +
+    safeStory.forestRecoveredWords.length + " / " + FOREST_MEMORY_IDS.length;
+  if(safeStory.questId === "rescue_rival_memory") return "숲 중심에서 쓰러진 라이벌의 기억을 되찾으세요.";
+  return "숲에서 찾은 기록을 영어박사님께 가져가세요.";
 }
 
 function getVillageSignText(story){
@@ -3804,6 +3879,12 @@ const WORLD_SIGNS = Object.freeze([
 ]);
 const WORLD_ROUTE_GATE_COORDINATES = new Set(["17,13", "17,14"]);
 const WORLD_RIVAL_COORDINATES = new Set(["21,13", "21,14"]);
+const WORLD_FOREST_STORY_NPCS = Object.freeze([
+  Object.freeze({ id: "forestBaker", memoryId: "bread", label: "제빵사", x: 23, y: 10, color: "#b96f3e" }),
+  Object.freeze({ id: "forestChild", memoryId: "friend", label: "숲의 아이", x: 31, y: 10, color: "#4b75aa" }),
+  Object.freeze({ id: "forestGuide", memoryId: "bridge", label: "길잡이", x: 24, y: 6, color: "#4d8754" }),
+  Object.freeze({ id: "forestRival", memoryId: "rival_courage", label: "쓰러진 라이벌", x: 28, y: 5, color: "#71394d" })
+]);
 const WORLD_TREE_COORDINATES = new Set([
   "2,3", "2,4", "2,5", "2,8", "2,9", "2,10",
   "10,2", "11,2", "12,2", "13,2", "14,2", "15,2",
@@ -3861,6 +3942,13 @@ function isInsideWorldBuilding(x, y, building){
          y >= building.y && y < building.y + building.height;
 }
 
+function getActiveForestStoryNpcAt(x, y, storyProgress){
+  const npc = WORLD_FOREST_STORY_NPCS.find(candidate => candidate.x === x && candidate.y === y);
+  if(!npc) return null;
+  if(npc.id === "forestRival") return shouldShowForestCenterRival(storyProgress) ? npc : null;
+  return shouldShowForestResident(storyProgress, npc.memoryId) ? npc : null;
+}
+
 function isWorldPositionBlocked(x, y, storyProgress){
   if(x < 0 || y < 0 || x >= WORLD_COLUMNS || y >= WORLD_ROWS) return true;
   const coordinateKey = x + "," + y;
@@ -3868,6 +3956,7 @@ function isWorldPositionBlocked(x, y, storyProgress){
      !isStoryRouteUnlocked(storyProgress)) return true;
   if(storyProgress && WORLD_RIVAL_COORDINATES.has(coordinateKey) &&
      shouldShowStoryRival(storyProgress)) return true;
+  if(storyProgress && getActiveForestStoryNpcAt(x, y, storyProgress)) return true;
   if(["water", "tree", "fence"].includes(getWorldTerrain(x, y))) return true;
   if(WORLD_BUILDINGS.some(building => isInsideWorldBuilding(x, y, building))) return true;
   return WORLD_SIGNS.some(sign => sign.x === x && sign.y === y);
@@ -4052,6 +4141,30 @@ function drawWorldStoryRival(context, camera){
   context.fillRect(screenX + 25, screenY + 5, 9, 3);
 }
 
+function drawForestStoryNpc(context, npc, camera){
+  const screenX = npc.x * WORLD_TILE_SIZE - camera.x;
+  const screenY = npc.y * WORLD_TILE_SIZE - camera.y;
+  const isRival = npc.id === "forestRival";
+  context.fillStyle = "rgba(25,34,27,.34)";
+  context.fillRect(screenX + (isRival ? 3 : 7), screenY + 27, isRival ? 27 : 19, 4);
+  context.fillStyle = npc.color;
+  if(isRival){
+    context.fillRect(screenX + 6, screenY + 19, 22, 8);
+    context.fillRect(screenX + 15, screenY + 11, 13, 10);
+  } else {
+    context.fillRect(screenX + 9, screenY + 15, 14, 13);
+    context.fillStyle = "#e2b474";
+    context.fillRect(screenX + 11, screenY + 7, 11, 10);
+    context.fillStyle = npc.color;
+    context.fillRect(screenX + 8, screenY + 4, 17, 5);
+  }
+  context.fillStyle = "#fff0a8";
+  context.font = "bold 13px sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("!", screenX + 16, screenY + 1);
+}
+
 function drawWorldPlayer(context, world, camera){
   const screenX = world.x * WORLD_TILE_SIZE - camera.x;
   const screenY = world.y * WORLD_TILE_SIZE - camera.y;
@@ -4108,6 +4221,11 @@ function drawWorldMap(){
   const story = S.wordGameProgress && S.wordGameProgress.story;
   if(story && !isStoryRouteUnlocked(story)) drawWorldStoryGate(context, camera);
   if(story && shouldShowStoryRival(story)) drawWorldStoryRival(context, camera);
+  if(story){
+    WORLD_FOREST_STORY_NPCS.forEach(npc => {
+      if(getActiveForestStoryNpcAt(npc.x, npc.y, story)) drawForestStoryNpc(context, npc, camera);
+    });
+  }
   drawWorldPlayer(context, S.world, camera);
 }
 
@@ -4148,6 +4266,8 @@ function getWorldObstacleMessage(x, y, storyProgress){
     return "사라진 단어 3개를 복구해야 1번 길의 백지 장벽이 사라집니다.";
   if(WORLD_RIVAL_COORDINATES.has(coordinateKey) && shouldShowStoryRival(storyProgress))
     return "라이벌이 길을 막고 있습니다. Enter 또는 A 버튼으로 대화하세요.";
+  const forestNpc = getActiveForestStoryNpcAt(x, y, storyProgress);
+  if(forestNpc) return forestNpc.label + "에게 Enter 또는 A 버튼으로 말을 거세요.";
   const building = WORLD_BUILDINGS.find(candidate => isInsideWorldBuilding(x, y, candidate));
   if(building){
     const isDoor = building.doorX === x && building.doorY === y;
@@ -4188,6 +4308,10 @@ function moveWorld(direction){
   drawWorldMap();
   const currentArea = getWorldAreaName(nextX, nextY);
   const terrain = getWorldTerrain(nextX, nextY);
+  if(currentArea === "기억의 숲" && sanitizeStoryProgress(story, false).questId === "enter_memory_forest"){
+    openMemoryForestArrivalScene();
+    return;
+  }
   if(maybeStartWorldEncounter(terrain)) return;
   if(currentArea !== previousArea) showWorldMessage(currentArea + "에 들어왔습니다.", 1800);
   else if(terrain === "tallGrass" && (nextX * 7 + nextY * 11) % 5 === 0)
@@ -4202,6 +4326,12 @@ function interactWorld(){
   const targetX = S.world.x + vector.dx;
   const targetY = S.world.y + vector.dy;
   const story = S.wordGameProgress && S.wordGameProgress.story;
+  const forestNpc = getActiveForestStoryNpcAt(targetX, targetY, story);
+  if(forestNpc){
+    if(forestNpc.id === "forestRival") openForestCenterRivalScene();
+    else openForestMemoryEncounter(forestNpc.memoryId);
+    return;
+  }
   if(WORLD_RIVAL_COORDINATES.has(targetX + "," + targetY) && shouldShowStoryRival(story)){
     openStoryRivalEncounter();
     return;
@@ -4244,7 +4374,7 @@ const WORD_ANSWER_TIME_LIMIT_SECONDS = 7;
 const STARTER_DECK_SIZE = 25;
 const STARTER_DECK_EXAM_RATIO = 0.2;
 const STARTER_DECK_PASS_RATIO = 0.8;
-const WORD_GAME_PROGRESS_VERSION = 6;
+const WORD_GAME_PROGRESS_VERSION = 7;
 const STARTER_DECK_DEFINITIONS = Object.freeze([
   Object.freeze({
     id: "daily", name: "생활 덱", emblem: "🍎", startIndex: 0,
@@ -4929,6 +5059,129 @@ function closeEnglishProfessorHouse(){
   if(canvas) canvas.focus({ preventScroll: true });
 }
 
+const FOREST_MEMORY_DETAILS = Object.freeze({
+  bread: Object.freeze({
+    npcName: "제빵사",
+    prompt: "매일 아침 이것을 구웠는데, 이제 이름만 떠오르지 않아요.",
+    restored: "따뜻한 bread 냄새와 함께 제빵사의 기억이 돌아왔습니다."
+  }),
+  friend: Object.freeze({
+    npcName: "숲의 아이",
+    prompt: "늘 함께 놀던 소중한 사람을 뭐라고 불렀는지 잊었어요.",
+    restored: "아이는 friend라는 말을 되찾고 친구에게 달려갑니다."
+  }),
+  bridge: Object.freeze({
+    npcName: "길잡이",
+    prompt: "강 건너 두 길을 이어 주는 것의 이름이 기억나지 않습니다.",
+    restored: "길잡이는 bridge를 기억해 내고 숲 중심으로 가는 길을 가리킵니다."
+  })
+});
+
+function findWordCardByLemma(lemma){
+  const normalizedLemma = normalizeCardAnswer(lemma);
+  for(let tier = 1; tier <= 5; tier++){
+    const entry = (L().bank[tier] || []).find(candidate =>
+      normalizeCardAnswer(candidate && candidate[0]) === normalizedLemma);
+    if(entry) return createWordCard(entry, tier, LANG);
+  }
+  return null;
+}
+
+function openMemoryForestArrivalScene(){
+  if(!S || !S.wordGameProgress) return;
+  const story = sanitizeStoryProgress(S.wordGameProgress.story, false);
+  if(story.questId !== "enter_memory_forest") return;
+  clearWordAnswerTimer();
+  S.forestMemoryId = null;
+  setProfessorPanelMode(false);
+  setDuelPanelMode(false);
+  $("pn-emoji").textContent = "🌲";
+  $("pn-title").textContent = "기억의 숲";
+  $("pn-sub").textContent = "사물은 남아 있지만, 그 이름만 사람들의 기억에서 사라진 숲입니다.";
+  $("pn-opts").innerHTML = '<div class="story-scene"><span class="story-scene-label">CHAPTER 3 · FOREST OF MEMORY</span>' +
+    '<p class="story-scene-copy">빵을 굽는 사람은 <b>빵의 이름</b>을, 함께 노는 아이는 <b>친구라는 말</b>을, 길잡이는 <b>다리를 부르는 말</b>을 잃었습니다.<br><br>' +
+    '숲 주민에게 말을 걸어 사라진 세 단어를 되찾으세요. 모르는 단어라면 보유 덱의 <b>90% 복구 시험</b>으로 기억을 연결할 수 있습니다.</p></div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="completeMemoryForestArrivalScene()">숲의 기억을 추적한다</button>';
+  $("panel").classList.add("show");
+}
+
+function completeMemoryForestArrivalScene(){
+  if(!S || !S.wordGameProgress) return;
+  S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
+    story: enterMemoryForestStory(S.wordGameProgress.story)
+  });
+  persistCurrentWordGame();
+  updateWorldMapHud();
+  drawWorldMap();
+  $("pn-title").textContent = "세 개의 빈 기억";
+  $("pn-sub").textContent = "숲 곳곳에 나타난 느낌표의 주민에게 말을 거세요.";
+  $("pn-opts").innerHTML = '<div class="collection-verdict win"><b>새 임무</b><br>' +
+    escapeCollectionText(getStoryObjective(S.wordGameProgress.story)) + '</div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeStoryScenePanel()">기억의 숲 탐색</button>';
+}
+
+function openForestMemoryEncounter(memoryId){
+  if(!S || !S.wordGameProgress || !shouldShowForestResident(S.wordGameProgress.story, memoryId)) return;
+  const detail = FOREST_MEMORY_DETAILS[memoryId];
+  const card = findWordCardByLemma(memoryId);
+  if(!detail || !card) return;
+  S.forestMemoryId = memoryId;
+  openWordEncounter(card);
+  $("pn-title").textContent = detail.npcName + "의 사라진 단어";
+  $("pn-sub").textContent = detail.prompt;
+}
+
+function openForestWordsRestoredScene(){
+  if(!S || sanitizeStoryProgress(S.wordGameProgress.story, false).questId !== "rescue_rival_memory") return;
+  clearWordAnswerTimer();
+  $("pn-emoji").textContent = "📻";
+  $("pn-title").textContent = "세 기억이 이어졌다";
+  $("pn-sub").textContent = "세 단어가 빛나자 영어박사님의 통신기가 응답합니다.";
+  $("pn-opts").innerHTML = '<div class="story-scene"><span class="story-scene-label">PROFESSOR · MEMORY LINK</span>' +
+    '<p class="story-scene-copy"><b>영어박사님:</b> “새로운 지식은 아무것도 없는 곳에서 생기지 않는단다. 네가 이미 알고 있는 단어들이 모르는 단어까지 데려온 거야.”<br><br>' +
+    '복구된 세 단어가 숲 중심을 가리킵니다. 그곳에서 희미한 라이벌의 흔적이 느껴집니다.</p></div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeStoryScenePanel()">숲 중심으로 간다</button>';
+  $("panel").classList.add("show");
+}
+
+function openForestCenterRivalScene(){
+  if(!S || !shouldShowForestCenterRival(S.wordGameProgress && S.wordGameProgress.story)) return;
+  clearWordAnswerTimer();
+  S.forestMemoryId = null;
+  $("pn-emoji").textContent = "⚔️";
+  $("pn-title").textContent = "쓰러진 라이벌";
+  $("pn-sub").textContent = "숲 중심에서 루멘이 빈 카드 한 장을 움켜쥔 채 쓰러져 있습니다.";
+  $("pn-opts").innerHTML = '<div class="story-scene"><span class="story-scene-label">FOREST CENTER · STOLEN MEMORY</span>' +
+    '<p class="story-scene-copy"><b>루멘:</b> “백지단에게… 내 단어를 빼앗겼어. 맞서야 한다는 마음은 남았는데, 그 마음의 이름이 기억나지 않아.”<br><br>' +
+    '빈 카드에 남은 뜻과 예문을 따라 빼앗긴 <b>Tier 3 기억</b>을 복구하세요.</p></div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="startForestRivalMemoryEncounter()">빼앗긴 기억 추적</button>' +
+    '<button class="ov-btn ghost" type="button" onclick="closeStoryScenePanel()">덱을 정비한다</button>';
+  $("panel").classList.add("show");
+}
+
+function startForestRivalMemoryEncounter(){
+  if(!S || !shouldShowForestCenterRival(S.wordGameProgress && S.wordGameProgress.story)) return;
+  const card = findWordCardByLemma("courage");
+  if(!card) return;
+  S.forestMemoryId = "rival_courage";
+  openWordEncounter(card);
+  $("pn-title").textContent = "빼앗긴 기억의 단어";
+  $("pn-sub").textContent = "두려움 속에서도 옳은 일을 하게 만드는 마음입니다.";
+}
+
+function openForestChapterCompleteScene(){
+  if(!S || sanitizeStoryProgress(S.wordGameProgress.story, false).questId !== "return_to_professor") return;
+  clearWordAnswerTimer();
+  $("pn-emoji").textContent = "✨";
+  $("pn-title").textContent = "기억을 되찾은 루멘";
+  $("pn-sub").textContent = "courage 카드가 빛나며 라이벌의 기억으로 돌아갑니다.";
+  $("pn-opts").innerHTML = '<div class="story-scene"><span class="story-scene-label">CHAPTER 3 · MEMORY RESTORED</span>' +
+    '<p class="story-scene-copy"><b>루멘:</b> “courage… 용기. 그래, 내가 잃어버린 건 이 말이었어. 그리고 넌 내 적이 아니라, 같은 단어를 지키는 사람이었지.”<br><br>' +
+    '루멘이 백지단이 남긴 <b>흰 기록 조각</b>을 건넵니다. 기록을 영어박사님께 가져가야 합니다.</p></div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeStoryScenePanel()">영어박사님께 돌아가기</button>';
+  $("panel").classList.add("show");
+}
+
 function getWorldEncounterTier(){
   return Math.min(5, 1 + Math.floor((S.world && S.world.steps || 0) / 45));
 }
@@ -4950,6 +5203,9 @@ function maybeStartWorldEncounter(terrain){
     return false;
   }
   const story = sanitizeStoryProgress(S.wordGameProgress.story, false);
+  const isActiveForestStory = getWorldAreaName(S.world.x, S.world.y) === "기억의 숲" &&
+    ["restore_forest_words", "rescue_rival_memory"].includes(story.questId);
+  if(isActiveForestStory) return false;
   const isTutorialCapture = story.questId === "capture_first_three" &&
     getWorldAreaName(S.world.x, S.world.y) === "새싹마을" && terrain === "tallGrass";
   if(!isTutorialCapture && !shouldStartWordEncounter(
@@ -4958,6 +5214,7 @@ function maybeStartWorldEncounter(terrain){
   const card = pickWorldEncounterCard();
   if(!card) return false;
   S.lastEncounterStep = S.world.steps;
+  S.forestMemoryId = null;
   openWordEncounter(card);
   return true;
 }
@@ -5016,24 +5273,47 @@ function captureEncounterWord(reason){
   S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
     story: recordFirstCaptureForStory(S.wordGameProgress.story, isNewCard)
   });
+  if(FOREST_MEMORY_IDS.includes(S.forestMemoryId)){
+    S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
+      story: recordForestMemoryForStory(S.wordGameProgress.story, S.forestMemoryId)
+    });
+  } else if(S.forestMemoryId === "rival_courage"){
+    S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
+      story: completeForestRivalRescue(S.wordGameProgress.story)
+    });
+  }
   persistCurrentWordGame();
   setMastery(card.w, Math.max(1, masteryOf(card.w)));
   updateWorldMapHud();
   updateCollectionProgress();
   $("pn-emoji").innerHTML = icon("flag");
-  $("pn-title").textContent = isNewCard ? "단어 포획 성공!" : "이미 보유한 단어";
+  const isForestResidentMemory = FOREST_MEMORY_IDS.includes(S.forestMemoryId);
+  const isForestRivalMemory = S.forestMemoryId === "rival_courage";
+  $("pn-title").textContent = isForestResidentMemory ? "주민의 기억 복구!"
+    : isForestRivalMemory ? "라이벌의 기억 복구!"
+    : isNewCard ? "단어 포획 성공!" : "이미 보유한 단어";
   $("pn-sub").textContent = reason + " · 덱 " + S.deck.length + "장";
   const story = sanitizeStoryProgress(S.wordGameProgress.story, false);
   const storyMarkup = story.flags.starterChosen && !story.flags.whitePageSeen
     ? '<div class="collection-verdict win">마을 표지판: <b>' +
       escapeCollectionText(getVillageSignText(story)) + '</b><br>신규 단어 포획 ' +
       story.questProgress + ' / ' + STORY_FIRST_CAPTURE_TARGET + '</div>'
-    : "";
+    : isForestResidentMemory
+      ? '<div class="collection-verdict win">' +
+        escapeCollectionText(FOREST_MEMORY_DETAILS[S.forestMemoryId].restored) + '<br><b>숲의 기억 ' +
+        story.forestRecoveredWords.length + ' / ' + FOREST_MEMORY_IDS.length + '</b></div>'
+      : isForestRivalMemory
+        ? '<div class="collection-verdict win"><b>courage · 용기</b><br>빼앗긴 단어와 라이벌의 기억이 연결되었습니다.</div>'
+        : "";
   $("pn-opts").innerHTML = '<div class="collection-verdict win"><b>' +
     escapeCollectionText(card.w) + '</b> — ' + escapeCollectionText(card.ko) +
     '<br>' + escapeCollectionText(card.example) + '</div>' + storyMarkup;
+  const continueLabel = isForestRivalMemory ? "라이벌에게 카드를 돌려준다"
+    : isForestResidentMemory && story.questId === "rescue_rival_memory" ? "영어박사님의 통신 확인"
+    : isForestResidentMemory ? "다음 기억을 찾는다"
+    : story.questId === "confront_white_page" ? "복구된 표지판 확인" : "덱에 넣고 계속";
   $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeCollectionPanel()">' +
-    (story.questId === "confront_white_page" ? '복구된 표지판 확인' : '덱에 넣고 계속') + '</button>';
+    continueLabel + '</button>';
 }
 
 function startCaptureExam(){
@@ -5104,14 +5384,29 @@ function finishCaptureExam(){
 
 function closeCollectionPanel(){
   clearWordAnswerTimer();
-  const shouldOpenStoryEvent = S && S.wordGameProgress &&
-    sanitizeStoryProgress(S.wordGameProgress.story, false).questId === "confront_white_page";
+  const forestMemoryId = S && S.forestMemoryId;
+  const story = S && S.wordGameProgress
+    ? sanitizeStoryProgress(S.wordGameProgress.story, false) : createDefaultStoryProgress();
+  const shouldOpenStoryEvent = story.questId === "confront_white_page";
+  const shouldOpenForestWordsScene = FOREST_MEMORY_IDS.includes(forestMemoryId) &&
+    story.questId === "rescue_rival_memory";
+  const shouldOpenForestChapterScene = forestMemoryId === "rival_courage" &&
+    story.questId === "return_to_professor";
   $("panel").classList.remove("show");
   S.encounterWord = null;
+  S.forestMemoryId = null;
   S.captureExam = null;
   renderMap();
   if(shouldOpenStoryEvent){
     openWhitePageStoryEvent();
+    return;
+  }
+  if(shouldOpenForestWordsScene){
+    openForestWordsRestoredScene();
+    return;
+  }
+  if(shouldOpenForestChapterScene){
+    openForestChapterCompleteScene();
     return;
   }
   const canvas = $("world-canvas");

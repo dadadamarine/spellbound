@@ -24,7 +24,7 @@ function loadWorldTestApi() {
   const worldSource = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${storySource}\n${worldSource}\n;globalThis.__worldTestApi = { createDefaultStoryProgress, completeWhitePageStoryEvent, completeStoryRivalDuel, createWorldState, getWorldTerrain, getWorldAreaName, isWorldPositionBlocked };`,
+    `${storySource}\n${worldSource}\n;globalThis.__worldTestApi = { createDefaultStoryProgress, createLegacyStoryProgress, enterMemoryForestStory, recordForestMemoryForStory, completeWhitePageStoryEvent, completeStoryRivalDuel, completeForestRivalRescue, createWorldState, getWorldTerrain, getWorldAreaName, getActiveForestStoryNpcAt, isWorldPositionBlocked };`,
     sandbox
   );
   return sandbox.__worldTestApi;
@@ -108,6 +108,32 @@ test("프롤로그·백지단·첫 라이벌 비랭크 대결 진입점이 존�
   assert.match(html, /function openStoryRivalEncounter/);
   assert.match(html, /function startStoryRivalDuel/);
   assert.match(html, /mode: "story-rival"/);
+});
+
+test("기억의 숲에서 미복구 주민과 숲 중심 라이벌이 진행도에 따라 길을 막는다", () => {
+  const api = loadWorldTestApi();
+  let story = api.enterMemoryForestStory(api.createLegacyStoryProgress());
+
+  assert.equal(api.getActiveForestStoryNpcAt(23, 10, story).memoryId, "bread");
+  assert.equal(api.isWorldPositionBlocked(23, 10, story), true);
+  story = api.recordForestMemoryForStory(story, "bread");
+  assert.equal(api.getActiveForestStoryNpcAt(23, 10, story), null);
+  assert.equal(api.isWorldPositionBlocked(23, 10, story), false);
+  story = api.recordForestMemoryForStory(story, "friend");
+  story = api.recordForestMemoryForStory(story, "bridge");
+  assert.equal(api.getActiveForestStoryNpcAt(28, 5, story).id, "forestRival");
+  assert.equal(api.isWorldPositionBlocked(28, 5, story), true);
+  const completed = api.completeForestRivalRescue(story);
+  assert.equal(api.getActiveForestStoryNpcAt(28, 5, completed), null);
+  assert.equal(api.isWorldPositionBlocked(28, 5, completed), false);
+});
+
+test("기억의 숲 입장·주민 회복·라이벌 구출 장면 진입점이 존재한다", () => {
+  assert.match(html, /function openMemoryForestArrivalScene/);
+  assert.match(html, /function openForestMemoryEncounter/);
+  assert.match(html, /function openForestWordsRestoredScene/);
+  assert.match(html, /function openForestCenterRivalScene/);
+  assert.match(html, /function openForestChapterCompleteScene/);
 });
 
 test("숲과 명예의 언덕 지역명이 좌표에 따라 바뀐다", () => {

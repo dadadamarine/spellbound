@@ -23,7 +23,8 @@ node --test test_capture_rules.mjs test_facility_rules.mjs test_world_map.mjs te
 ## 현재 범위
 
 - 영어박사님 집에서 세 종류의 쉬운 25장 덱 중 하나를 시험으로 획득
-- 편지 프롤로그부터 마을 복구·1번 길 해금·첫 라이벌전까지 저장되는 스토리
+- 편지 프롤로그부터 마을 복구·첫 라이벌전·기억의 숲 주민 및 라이벌 기억 복구까지 저장되는 스토리
+- 기억의 숲 NPC `bread`·`friend`·`bridge`와 Tier 3 `courage` 스토리 포획
 - 맵 탐험과 7초 숫자+감소 게이지 제한시간 단어 포획
 - 덱 기반 포획 복구 시험
 - 카드정리소 시험 및 카드 제거

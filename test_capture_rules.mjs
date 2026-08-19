@@ -123,6 +123,12 @@ test("입력 제한시간은 남은 시간에 따라 줄어드는 게이지로 �
   assert.match(html, /fill\.style\.width\s*=\s*remainingRatio/);
 });
 
+test("기억의 숲 NPC 단어는 직접 정답과 90% 복구 시험 모두 같은 스토리 진행으로 연결된다", () => {
+  assert.match(html, /forestMemoryId/);
+  assert.match(html, /recordForestMemoryForStory\(S\.wordGameProgress\.story/);
+  assert.match(html, /openForestChapterCompleteScene/);
+});
+
 test("새 사용자는 영어박사님 집에서 스타팅 덱을 고르기 전 빈 덱으로 시작한다", () => {
   const api = loadCaptureTestApi();
   const progress = api.createDefaultWordGameProgress();
@@ -242,7 +248,7 @@ test("구버전의 5장 저장 덱도 게임 시작 시 실제 50장 덱으로 �
 
   const migrated = api.sanitizeWordGameProgress(legacyProgress);
 
-  assert.equal(migrated.version, 6);
+  assert.equal(migrated.version, 7);
   assert.equal(migrated.decks.en.length, 50);
   assert.equal(new Set(migrated.decks.en.map(card => card.key)).size, 50);
   assert.equal(migrated.collections.en.length, 50);
