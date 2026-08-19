@@ -31,7 +31,7 @@ function loadCaptureTestApi() {
   const source = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${storySource}\n${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckCandidateChoice, clearStarterDeckCandidateChoice, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
+    `${storySource}\n${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, createWordCards, getCardLemmaKey, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckCandidateChoice, clearStarterDeckCandidateChoice, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
     sandbox
   );
   return sandbox.__captureTestApi;
@@ -79,7 +79,7 @@ test("직접 정답 또는 기존 덱 시험 90% 이상일 때만 포획한다",
   assert.equal(api.canCaptureEncounter(false, 0, 0), false);
 });
 
-test("카드는 언어와 표제어 기준으로 중복 없이 추가된다", () => {
+test("같은 의미 카드는 중복 없이 추가된다", () => {
   const api = loadCaptureTestApi();
   const card = api.createWordCard(["apple", "사과", "명사"], 1, "en");
   const originalDeck = [];
@@ -89,6 +89,99 @@ test("카드는 언어와 표제어 기준으로 중복 없이 추가된다", ()
   assert.equal(originalDeck.length, 0);
   assert.equal(once.length, 1);
   assert.equal(twice.length, 1);
+});
+
+test("make는 네 뜻마다 예문 세 개를 가진 카드 12장으로 구성된다", () => {
+  const api = loadCaptureTestApi();
+  const makeEntry = loadEnglishWordBank()[2].find(entry => entry[0] === "make");
+  const cards = api.createWordCards(makeEntry, 2, "en");
+
+  assert.equal(cards.length, 12);
+  assert.equal(new Set(cards.map(card => card.key)).size, 12);
+  assert.equal(cards[0].key, "en:make");
+  assert.equal(cards[1].key, "en:make:create:2");
+  assert.equal(cards[3].key, "en:make:cause:1");
+  assert.equal(new Set(cards.map(card => card.ko)).size, 4);
+  assert.equal(cards.every(card => card.w === "make" && card.example.includes("____")), true);
+  assert.equal(cards.every(card => api.getCardLemmaKey(card) === "en:make"), true);
+  const examplesBySense = Map.groupBy(cards, card => card.senseId);
+  assert.equal(examplesBySense.size, 4);
+  assert.equal(Array.from(examplesBySense.values()).every(senseCards => senseCards.length === 3), true);
+});
+
+test("같은 표제어와 뜻이어도 예문이 다르면 덱에 함께 넣을 수 있다", () => {
+  const api = loadCaptureTestApi();
+  const makeEntry = loadEnglishWordBank()[2].find(entry => entry[0] === "make");
+  const createCards = api.createWordCards(makeEntry, 2, "en")
+    .filter(card => card.senseId === "create");
+  const deck = createCards.reduce((currentDeck, card) => api.addCardToDeck(currentDeck, card), []);
+  const duplicate = api.addCardToDeck(deck, createCards[0]);
+
+  assert.equal(new Set(createCards.map(card => card.ko)).size, 1);
+  assert.equal(new Set(createCards.map(card => card.example)).size, 3);
+  assert.equal(deck.length, 3);
+  assert.equal(duplicate.length, 3);
+  assert.equal(deck.every(card => card.w === "make"), true);
+});
+
+test("영어 500단어는 뜻마다 최소 두 개의 예문 카드를 가진다", () => {
+  const api = loadCaptureTestApi();
+  const bank = loadEnglishWordBank();
+  const entries = Object.entries(bank).flatMap(([tier, tierEntries]) =>
+    tierEntries.map(entry => ({ tier: Number(tier), entry })));
+  const cards = entries.flatMap(({ tier, entry }) => api.createWordCards(entry, tier, "en"));
+
+  assert.equal(entries.length, 500);
+  assert.equal(entries.every(({ tier, entry }) => api.createWordCards(entry, tier, "en").length >= 2), true);
+  assert.equal(entries.every(({ tier, entry }) => {
+    const entryCards = api.createWordCards(entry, tier, "en");
+    return Array.from(new Set(entryCards.map(card => card.senseId))).every(senseId =>
+      entryCards.filter(card => card.senseId === senseId).length >= 2);
+  }), true);
+  assert.equal(cards.length >= 1000, true);
+  assert.equal(new Set(cards.map(card => card.key)).size, cards.length);
+  assert.equal(cards.every(card => (card.example.match(/____/g) || []).length === 1), true);
+  const revealedWords = cards.filter(card => {
+    const escapedWord = card.w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("\\b" + escapedWord + "\\b", "i").test(card.example);
+  }).map(card => card.w + ": " + card.example);
+  assert.deepEqual(revealedWords, []);
+});
+
+test("저장 후 불러와도 같은 뜻의 서로 다른 예문 카드 키가 유지된다", () => {
+  const api = loadCaptureTestApi();
+  const makeEntry = loadEnglishWordBank()[2].find(entry => entry[0] === "make");
+  const createCards = api.createWordCards(makeEntry, 2, "en")
+    .filter(card => card.senseId === "create").slice(0, 2);
+  const progress = api.sanitizeWordGameProgress({
+    version: 8,
+    starterDeckId: "legacy",
+    decks: { en: createCards },
+    collections: { en: createCards.map(card => card.key) }
+  });
+
+  assert.deepEqual(Array.from(progress.decks.en, card => card.key), ["en:make", "en:make:create:2"]);
+  assert.deepEqual(Array.from(progress.collections.en), ["en:make", "en:make:create:2"]);
+});
+
+test("쉼표로 구분된 다의어는 뜻마다 구별되는 예문 카드가 있다", () => {
+  const api = loadCaptureTestApi();
+  const entries = Object.entries(loadEnglishWordBank()).flatMap(([tier, tierEntries]) =>
+    tierEntries.filter(entry => String(entry[1]).includes(","))
+      .map(entry => ({ tier: Number(tier), entry })));
+
+  assert.equal(entries.length, 23);
+  entries.forEach(({ tier, entry }) => {
+    const cards = api.createWordCards(entry, tier, "en");
+    const meanings = String(entry[1]).split(/\s*,\s*/);
+    assert.equal(new Set(cards.map(card => card.senseId)).size, meanings.length, entry[0]);
+    assert.deepEqual(new Set(cards.map(card => card.ko)), new Set(meanings), entry[0]);
+    meanings.forEach(meaning => {
+      const examples = cards.filter(card => card.ko === meaning).map(card => card.example);
+      assert.equal(examples.length >= 2, true, entry[0] + ": " + meaning);
+      assert.equal(new Set(examples).size, examples.length, entry[0] + ": " + meaning);
+    });
+  });
 });
 
 test("풀숲·쿨다운·확률 조건을 모두 만족할 때만 조우한다", () => {
@@ -217,6 +310,19 @@ test("포획한 카드는 도감에 중복 없이 등록된다", () => {
   assert.deepEqual(duplicate, ["en:apple"]);
 });
 
+test("도감은 같은 표제어의 예문 카드를 뜻별로 묶어서 보여준다", () => {
+  const api = loadCaptureTestApi();
+  const makeEntry = loadEnglishWordBank()[2].find(entry => entry[0] === "make");
+  const cards = api.createWordCards(makeEntry, 2, "en");
+  const keys = cards.reduce((collection, card) => api.addCardKeyToCollection(collection, card), []);
+
+  assert.equal(keys.length, 12);
+  assert.equal(new Set(keys).size, 12);
+  assert.match(html, /function openCollectionViewer/);
+  assert.match(html, /예문 카드/);
+  assert.match(html, /onclick="openCollectionViewer\(\)"/);
+});
+
 test("덱에서 카드를 제거해도 도감 등록은 유지된다", () => {
   const api = loadCaptureTestApi();
   const progress = api.applyStarterDeckChoice(
@@ -248,7 +354,7 @@ test("구버전의 5장 저장 덱도 게임 시작 시 실제 50장 덱으로 �
 
   const migrated = api.sanitizeWordGameProgress(legacyProgress);
 
-  assert.equal(migrated.version, 7);
+  assert.equal(migrated.version, 8);
   assert.equal(migrated.decks.en.length, 50);
   assert.equal(new Set(migrated.decks.en.map(card => card.key)).size, 50);
   assert.equal(migrated.collections.en.length, 50);

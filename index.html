@@ -1063,6 +1063,32 @@
     display: block; margin-top: 6px; font-family: var(--mono); font-size: 10px;
     font-style: normal; line-height: 1.55; color: var(--dim);
   }
+  .collection-word-group {
+    padding: 12px; color: var(--text); background: var(--pane-2); border: 1px solid var(--line);
+  }
+  .collection-word-group.locked { opacity: .5; }
+  .collection-word-head {
+    display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .collection-word-head b { font-family: var(--mono); font-size: 14px; color: var(--white); }
+  .collection-word-head span { font-family: var(--mono); font-size: 9px; color: var(--sky); }
+  .collection-sense-list { display: grid; gap: 6px; margin-top: 8px; }
+  .collection-sense-row { padding: 8px 9px; background: var(--pane-3); border-left: 2px solid var(--ok); }
+  .collection-sense-row.locked { color: var(--dimmer); border-left-color: var(--line-2); }
+  .collection-sense-row b { display: block; font-size: 12px; color: var(--text); }
+  .collection-sense-row.locked b { color: var(--dimmer); }
+  .collection-sense-row small {
+    display: block; margin-top: 4px; font-family: var(--mono); font-size: 9px; line-height: 1.55; color: var(--dim);
+  }
+  .collection-example-list { display: grid; gap: 4px; margin-top: 7px; }
+  .collection-example-row {
+    display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px;
+    padding: 6px 7px; font-family: var(--mono); font-size: 9px; line-height: 1.5;
+    color: var(--text); background: rgba(255,255,255,.035); border: 1px solid var(--line);
+  }
+  .collection-example-row.locked { color: var(--dimmer); }
+  .collection-example-row span:first-child { color: var(--sky-lo); }
 
   .ov-card.professor-mode { max-width: 760px; }
   .professor-room {
@@ -1521,6 +1547,8 @@
       </div>
       <div class="map-hud-actions">
         <div id="relic-bar"><span class="none">NO RELIC</span></div>
+        <button type="button" class="deck-view-button" id="collection-view-button" onclick="openCollectionViewer()"
+                aria-label="단어 도감 전체 보기">도감 <span id="collection-view-count">0</span></button>
         <button type="button" class="deck-view-button" id="deck-view-button" onclick="openDeckViewer()"
                 aria-label="내 덱 전체 보기">내 덱 <span id="deck-view-count">0</span></button>
       </div>
@@ -1723,7 +1751,29 @@ const WORDS_EN = {
 ["hear","듣다","동사"],["tell","말해주다","동사"],["ask","묻다","동사"],["call","부르다","동사"],["shout","외치다","동사"],
 ["sing","노래하다","동사"],["dance","춤추다","동사"],["laugh","웃다","동사"],["hope","바라다","동사"],["need","필요하다","동사"],
 ["study","공부하다","동사"],["draw","그리다","동사"],["count","세다","동사"],["stay","머무르다","동사"],["enter","들어가다","동사"],
-["lead","이끌다","동사"],["join","합류하다","동사"],["meet","만나다","동사"],["turn","돌다, 돌리다","동사"],["begin","시작하다","동사"],
+["lead","이끌다","동사"],["join","합류하다","동사"],["meet","만나다","동사"],["turn","돌다, 돌리다","동사"],
+["make","만들다","동사","They ____ fresh bread every morning.",[],[
+  {id:"create",ko:"만들다",examples:[
+    "They ____ fresh bread every morning.",
+    "We ____ our own cards from recycled paper.",
+    "Artists ____ beautiful things from simple materials."
+  ]},
+  {id:"cause",ko:"~하게 하다",examples:[
+    "Kind words ____ people feel welcome.",
+    "These songs ____ me feel calm.",
+    "Small details ____ the story more believable."
+  ]},
+  {id:"earn",ko:"벌다",examples:[
+    "How much do you ____ in a month?",
+    "Skilled workers can ____ a good living.",
+    "She hopes to ____ enough money for the trip."
+  ]},
+  {id:"reach",ko:"해내다, 도착하다",examples:[
+    "We can ____ it to the station by noon.",
+    "Do you think we can ____ it home before dark?",
+    "The team worked hard to ____ it to the final."
+  ]}
+]],
 ["grow","자라다","동사"],["happen","일어나다","동사"],["rest","쉬다","동사"],["knock","두드리다","동사"],["bend","구부리다","동사"],
 ["shake","흔들다","동사"],["pour","붓다","동사"],["boil","끓이다","동사"],["burn","태우다","동사"],["float","뜨다","동사"]
 ],
@@ -4374,7 +4424,101 @@ const WORD_ANSWER_TIME_LIMIT_SECONDS = 7;
 const STARTER_DECK_SIZE = 25;
 const STARTER_DECK_EXAM_RATIO = 0.2;
 const STARTER_DECK_PASS_RATIO = 0.8;
-const WORD_GAME_PROGRESS_VERSION = 7;
+const WORD_GAME_PROGRESS_VERSION = 8;
+const ENGLISH_MULTI_SENSE_CASES = Object.freeze({
+  picture: [
+    { id:"drawing", ko:"그림", examples:["She drew a ____ of the garden.", "The child colored the ____ carefully."] },
+    { id:"photo", ko:"사진", examples:["We took a ____ at sunset.", "The ____ shows my whole family."] }
+  ],
+  heart: [
+    { id:"organ", ko:"심장", examples:["Exercise keeps your ____ healthy.", "His ____ began to beat faster."] },
+    { id:"feeling", ko:"마음", examples:["She spoke honestly from the ____.", "Follow your ____ when you choose."] }
+  ],
+  glass: [
+    { id:"material", ko:"유리", examples:["The window is made of ____.", "Broken ____ covered the floor."] },
+    { id:"container", ko:"잔", examples:["Please fill the ____ with water.", "He raised his ____ for a toast."] }
+  ],
+  rice: [
+    { id:"grain", ko:"쌀", examples:["Wash the ____ before cooking it.", "This bag contains brown ____."] },
+    { id:"meal", ko:"밥", examples:["We ate ____ with soup for dinner.", "The ____ is still warm in the pot."] }
+  ],
+  save: [
+    { id:"store", ko:"저축하다", examples:["I ____ part of my pay each month.", "They ____ money for future trips."] },
+    { id:"rescue", ko:"구하다", examples:["Firefighters ____ lives every day.", "This medicine could ____ the patient."] }
+  ],
+  hide: [
+    { id:"conceal-self", ko:"숨다", examples:["The child tried to ____ behind the sofa.", "We ____ until the storm passes."] },
+    { id:"conceal-object", ko:"숨기다", examples:["Do not ____ the truth from me.", "Dark clouds ____ the moon tonight."] }
+  ],
+  turn: [
+    { id:"rotate", ko:"돌다", examples:["The wheels ____ quickly on the road.", "The dancers ____ in a slow circle."] },
+    { id:"rotate-object", ko:"돌리다", examples:["Please ____ the handle clockwise.", "Use the key to ____ the lock."] }
+  ],
+  wonder: [
+    { id:"awe", ko:"경이", examples:["The northern lights filled us with ____.", "The child looked at the stars in ____."] },
+    { id:"surprise", ko:"놀라움", examples:["To my ____, the door was open.", "She stared at the result in ____."] }
+  ],
+  comfort: [
+    { id:"consolation", ko:"위안", examples:["Her letter gave me great ____.", "Music brought him ____ after the loss."] },
+    { id:"ease", ko:"편안함", examples:["This chair offers excellent ____.", "The room was designed for ____."] }
+  ],
+  chance: [
+    { id:"opportunity", ko:"기회", examples:["Give me a ____ to explain.", "This job is a great ____ to learn."] },
+    { id:"possibility", ko:"가능성", examples:["There is a ____ of rain tonight.", "We still have a small ____ of winning."] }
+  ],
+  struggle: [
+    { id:"conflict", ko:"투쟁", examples:["Their long ____ for freedom continued.", "The book describes a political ____."] },
+    { id:"difficulty", ko:"분투", examples:["Finding balance became a daily ____.", "The final climb was a real ____."] }
+  ],
+  pattern: [
+    { id:"system", ko:"양식", examples:["The data follows a clear ____.", "We noticed a ____ in his behavior."] },
+    { id:"design", ko:"무늬", examples:["The cloth has a floral ____.", "She chose a shirt with a striped ____."] }
+  ],
+  lesson: [
+    { id:"moral", ko:"교훈", examples:["The mistake taught me an important ____.", "There is a useful ____ in this story."] },
+    { id:"class", ko:"수업", examples:["Our English ____ begins at nine.", "The teacher prepared today's ____."] }
+  ],
+  spirit: [
+    { id:"attitude", ko:"정신", examples:["The team showed strong ____.", "Her fighting ____ inspired everyone."] },
+    { id:"soul", ko:"영혼", examples:["The legend says a ____ lives here.", "They believed the ____ survived death."] }
+  ],
+  brilliant: [
+    { id:"excellent", ko:"훌륭한", examples:["That was a ____ idea.", "She gave a ____ performance."] },
+    { id:"bright", ko:"눈부신", examples:["A ____ light filled the room.", "The diamond looked ____ in the sun."] }
+  ],
+  tender: [
+    { id:"gentle", ko:"다정한", examples:["He gave the child a ____ smile.", "She cared for them in a ____ way."] },
+    { id:"soft", ko:"연한", examples:["The cooked meat was very ____.", "Only the ____ leaves are used."] }
+  ],
+  modest: [
+    { id:"humble", ko:"겸손한", examples:["She is ____ about her achievements.", "He gave a ____ reply to the praise."] },
+    { id:"moderate", ko:"적당한", examples:["The hotel charges a ____ price.", "Sales showed a ____ increase."] }
+  ],
+  graceful: [
+    { id:"elegant", ko:"우아한", examples:["The dancer made a ____ movement.", "A ____ bird landed by the lake."] },
+    { id:"dignified", ko:"품위 있는", examples:["She made a ____ exit from the stage.", "His ____ acceptance impressed the crowd."] }
+  ],
+  violent: [
+    { id:"intense", ko:"격렬한", examples:["A ____ storm hit the coast.", "The machine began to shake in a ____ way."] },
+    { id:"harmful", ko:"폭력적인", examples:["The police stopped a ____ attack.", "The game avoids ____ behavior."] }
+  ],
+  hollow: [
+    { id:"empty", ko:"텅 빈", examples:["The old tree is ____ inside.", "His footsteps echoed through the ____ hall."] },
+    { id:"meaningless", ko:"공허한", examples:["The victory felt ____ without her.", "His promise sounded ____ to everyone."] }
+  ],
+  bitter: [
+    { id:"taste", ko:"쓴", examples:["The medicine has a ____ taste.", "This coffee is too ____ for me."] },
+    { id:"painful", ko:"쓰라린", examples:["The defeat left a ____ memory.", "They remained ____ after the argument."] }
+  ],
+  determine: [
+    { id:"discover", ko:"알아내다", examples:["Tests will ____ the cause of the problem.", "We need to ____ what went wrong."] },
+    { id:"decide", ko:"확정하다", examples:["The committee will ____ the final date.", "The scores ____ who advances."] }
+  ],
+  appreciate: [
+    { id:"thank", ko:"감사하다", examples:["I truly ____ your help.", "We ____ everything you have done."] },
+    { id:"value", ko:"진가를 알다", examples:["It takes time to ____ this painting.", "She learned to ____ quiet moments."] }
+  ]
+});
 const STARTER_DECK_DEFINITIONS = Object.freeze([
   Object.freeze({
     id: "daily", name: "생활 덱", emblem: "🍎", startIndex: 0,
@@ -4416,39 +4560,149 @@ function getWordAnswerTimeLimitSeconds(){
   return WORD_ANSWER_TIME_LIMIT_SECONDS;
 }
 
-function buildEncounterExample(word, language, tag, explicitExample){
-  if(typeof explicitExample === "string" && explicitExample.includes("____")) return explicitExample;
+function getEncounterExampleTemplates(tag){
   const normalizedTag = String(tag || "").toLowerCase();
   const isVerb = normalizedTag.includes("동사") || normalizedTag.includes("verb");
   const isAdjective = normalizedTag.includes("형용사") || normalizedTag.includes("adjective");
   const isAdverb = normalizedTag.includes("부사") || normalizedTag.includes("adverb");
-  const templates = isVerb
-    ? ["They decided to ____ after class.", "We can ____ before dinner."]
+  return isVerb
+    ? [
+      "They decided to ____ after class.",
+      "We can ____ before dinner.",
+      "Please ____ when you are ready.",
+      "I watched them ____ together.",
+      "You should ____ with care.",
+      "They often ____ on weekends."
+    ]
     : isAdjective
-      ? ["The result seemed ____ to everyone.", "The scene looked very ____ today."]
+      ? [
+        "The result seemed ____ to everyone.",
+        "The scene looked very ____ today.",
+        "It was a surprisingly ____ moment.",
+        "Her answer sounded ____ to me.",
+        "The room became ____ after sunset.",
+        "They described the plan as ____."
+      ]
       : isAdverb
-        ? ["She completed the task ____.", "He answered the question ____."]
-        : ["Today's lesson is about ____.", "We talked about ____ during class."];
-  const hash = Array.from(String(word || "")).reduce((sum, character) => sum + character.codePointAt(0), 0);
-  return templates[hash % templates.length];
+        ? [
+          "She completed the task ____.",
+          "He answered the question ____.",
+          "The situation changed ____.",
+          "They moved ____ through the hall.",
+          "Please speak ____ so everyone can follow.",
+          "The team responded ____."
+        ]
+        : [
+          "Today's lesson is about ____.",
+          "We talked about ____ during class.",
+          "The book contains a chapter on ____.",
+          "They found ____ near the old house.",
+          "Our teacher explained ____ clearly.",
+          "The story begins with ____."
+        ];
 }
 
-function createWordCard(entry, tier, language){
+function getStableTextHash(value){
+  return Array.from(String(value || "")).reduce((hash, character) =>
+    ((hash * 31) + character.codePointAt(0)) >>> 0, 0);
+}
+
+function buildEncounterExamples(word, language, tag, explicitExamples, seed){
+  const escapedWord = String(word || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const targetWordPattern = escapedWord ? new RegExp("\\b" + escapedWord + "\\b", "i") : null;
+  const suppliedExamples = (Array.isArray(explicitExamples) ? explicitExamples : [explicitExamples])
+    .map(example => String(example || "").trim())
+    .filter(example => example.includes("____") &&
+      (!targetWordPattern || !targetWordPattern.test(example)));
+  const uniqueExamples = suppliedExamples.filter((example, index, examples) =>
+    examples.indexOf(example) === index);
+  const templates = getEncounterExampleTemplates(tag);
+  const startIndex = getStableTextHash([language, word, seed].join(":")) % templates.length;
+  for(let offset = 0; uniqueExamples.length < 2 && offset < templates.length; offset++){
+    const candidate = templates[(startIndex + offset) % templates.length];
+    if(!uniqueExamples.includes(candidate) && (!targetWordPattern || !targetWordPattern.test(candidate))){
+      uniqueExamples.push(candidate);
+    }
+  }
+  return uniqueExamples;
+}
+
+function buildEncounterExample(word, language, tag, explicitExample){
+  return buildEncounterExamples(word, language, tag, explicitExample, "default")[0];
+}
+
+function getWordEntrySenses(entry, language){
   const word = String(entry && entry[0] || "");
+  const rawSenses = Array.isArray(entry && entry[5]) ? entry[5] : [];
+  const configuredSenses = rawSenses.length
+    ? rawSenses
+    : language === "en" && Array.isArray(ENGLISH_MULTI_SENSE_CASES[word])
+      ? ENGLISH_MULTI_SENSE_CASES[word]
+      : [];
+  const senses = configuredSenses.map((sense, index) => {
+    const source = sense && typeof sense === "object" ? sense : {};
+    const id = String(source.id || "sense-" + (index + 1)).trim();
+    const ko = String(source.ko || "").trim();
+    const explicitExamples = Array.isArray(source.examples) ? source.examples : source.example;
+    const examples = buildEncounterExamples(word, language, entry && entry[2], explicitExamples, id);
+    return id && ko ? { id, ko, examples } : null;
+  }).filter(Boolean);
+  if(senses.length) return senses;
+  const meanings = String(entry && entry[1] || "").split(/\s*,\s*/).filter(Boolean);
+  return (meanings.length ? meanings : [""]).map((ko, index) => {
+    const id = meanings.length > 1 ? "sense-" + (index + 1) : "default";
+    return {
+      id,
+      ko,
+      examples: buildEncounterExamples(word, language, entry && entry[2], index === 0 ? entry && entry[3] : null, id)
+    };
+  });
+}
+
+function createWordCard(entry, tier, language, requestedSenseId, requestedExampleIndex){
+  const word = String(entry && entry[0] || "");
+  const senses = getWordEntrySenses(entry, language);
+  const sense = senses.find(candidate => candidate.id === requestedSenseId) || senses[0];
+  const senseIndex = senses.findIndex(candidate => candidate.id === sense.id);
+  const exampleIndex = Math.max(0, Math.min(
+    sense.examples.length - 1,
+    Number.isInteger(requestedExampleIndex) ? requestedExampleIndex : 0
+  ));
+  const lemmaKey = language + ":" + normalizeCardAnswer(word);
+  const isFirstVariant = senseIndex === 0 && exampleIndex === 0;
   const acceptedAnswers = [word].concat(Array.isArray(entry && entry[4]) ? entry[4] : [])
     .map(answer => String(answer || "").trim()).filter(Boolean)
     .filter((answer, index, answers) => answers.findIndex(candidate =>
       normalizeCardAnswer(candidate) === normalizeCardAnswer(answer)) === index);
   return {
-    key: language + ":" + normalizeCardAnswer(word),
+    key: isFirstVariant ? lemmaKey : lemmaKey + ":" + sense.id + ":" + (exampleIndex + 1),
+    lemmaKey,
     lang: language,
     w: word,
-    ko: String(entry && entry[1] || ""),
+    ko: sense.ko,
     tag: String(entry && entry[2] || ""),
     tier: Math.max(1, Math.min(5, Number(tier) || 1)),
-    example: buildEncounterExample(word, language, entry && entry[2], entry && entry[3]),
+    example: sense.examples[exampleIndex],
+    senseId: sense.id,
+    senseIndex,
+    senseCount: senses.length,
+    exampleIndex,
+    exampleCount: sense.examples.length,
+    variantCount: senses.reduce((total, candidate) => total + candidate.examples.length, 0),
     acceptedAnswers
   };
+}
+
+function createWordCards(entry, tier, language){
+  return getWordEntrySenses(entry, language).flatMap(sense =>
+    sense.examples.map((_, exampleIndex) =>
+      createWordCard(entry, tier, language, sense.id, exampleIndex)));
+}
+
+function getCardLemmaKey(card){
+  if(card && typeof card.lemmaKey === "string" && card.lemmaKey) return card.lemmaKey;
+  return String(card && card.lang || GAME_LANGUAGE) + ":" +
+    normalizeCardAnswer(card && card.w || "");
 }
 
 function addCardToDeck(deck, card){
@@ -4594,8 +4848,26 @@ function createLegacyStarterDeck(wordBank, language){
   return tierOneEntries.slice(0, 50).map(entry => createWordCard(entry, 1, language));
 }
 
+function findWordBankEntryByLemma(word, language){
+  const bank = language === "en" ? WORDS_EN : {};
+  const normalizedWord = normalizeCardAnswer(word);
+  for(let tier = 1; tier <= 5; tier++){
+    const entry = (bank[tier] || []).find(candidate =>
+      normalizeCardAnswer(candidate && candidate[0]) === normalizedWord);
+    if(entry) return { entry, tier };
+  }
+  return null;
+}
+
 function sanitizeStoredCard(card, language){
   if(!card || typeof card !== "object" || typeof card.w !== "string" || !card.w.trim()) return null;
+  const bankMatch = findWordBankEntryByLemma(card.w, language);
+  if(bankMatch){
+    const cards = createWordCards(bankMatch.entry, bankMatch.tier, language);
+    return cards.find(candidate => candidate.senseId === card.senseId &&
+      candidate.exampleIndex === card.exampleIndex) ||
+      cards.find(candidate => candidate.ko === card.ko && candidate.example === card.example) || cards[0];
+  }
   const entry = [card.w, card.ko, card.tag, card.example, card.acceptedAnswers];
   return createWordCard(entry, card.tier, language);
 }
@@ -5190,11 +5462,11 @@ function pickWorldEncounterCard(){
   const tier = getWorldEncounterTier();
   const bank = L().bank[tier] || L().bank[1] || [];
   if(!bank.length) return null;
+  const cards = bank.flatMap(entry => createWordCards(entry, tier, LANG));
   const ownedKeys = new Set(S.deck.map(card => card.key));
-  const unowned = bank.filter(entry =>
-    !ownedKeys.has(LANG + ":" + normalizeCardAnswer(entry[0])));
-  const pool = unowned.length ? unowned : bank;
-  return createWordCard(pool[Math.floor(Math.random() * pool.length)], tier, LANG);
+  const unowned = cards.filter(card => !ownedKeys.has(card.key));
+  const pool = unowned.length ? unowned : cards;
+  return pool[Math.floor(Math.random() * pool.length)] || null;
 }
 
 function maybeStartWorldEncounter(terrain){
@@ -5694,7 +5966,7 @@ function getDuelWordPool(rating){
   const maxTier = Math.max(1, Math.min(5, 1 + Math.floor((Number(rating) || 0) / 500)));
   const cards = [];
   for(let tier = 1; tier <= maxTier; tier++){
-    (L().bank[tier] || []).forEach(entry => cards.push(createWordCard(entry, tier, LANG)));
+    (L().bank[tier] || []).forEach(entry => cards.push(...createWordCards(entry, tier, LANG)));
   }
   return cards;
 }
@@ -6188,9 +6460,76 @@ function renderMap(){
 
 function updateCollectionProgress(){
   const totalWords = Object.values(L().bank).reduce((total, tier) => total + tier.length, 0);
-  $("relic-bar").innerHTML = '<span class="none">도감 ' + S.collectionKeys.length + " / " + totalWords + "</span>";
+  const totalMeaningCards = Object.entries(L().bank).reduce((total, [tier, entries]) =>
+    total + entries.reduce((count, entry) => count + createWordCards(entry, Number(tier), LANG).length, 0), 0);
+  const collectedLemmaCount = new Set(S.collectionKeys.map(key => String(key).split(":").slice(0, 2).join(":"))).size;
+  $("relic-bar").innerHTML = '<span class="none">도감 ' + collectedLemmaCount + " / " + totalWords +
+    " · 예문 카드 " + S.collectionKeys.length + " / " + totalMeaningCards + "</span>";
   const deckCount = $("deck-view-count");
   if(deckCount) deckCount.textContent = S.deck.length;
+  const collectionCount = $("collection-view-count");
+  if(collectionCount) collectionCount.textContent = collectedLemmaCount;
+}
+
+function openCollectionViewer(){
+  if(!S || !Array.isArray(S.collectionKeys)) return;
+  clearWordAnswerTimer();
+  const collectedKeys = new Set(S.collectionKeys);
+  const groups = [];
+  Object.entries(L().bank).forEach(([tier, entries]) => {
+    entries.forEach(entry => groups.push({
+      tier: Number(tier),
+      cards: createWordCards(entry, Number(tier), LANG)
+    }));
+  });
+  const collectedGroups = groups.filter(group => group.cards.some(card => collectedKeys.has(card.key))).length;
+  const collectedMeaningCards = groups.reduce((count, group) =>
+    count + group.cards.filter(card => collectedKeys.has(card.key)).length, 0);
+  const totalMeaningCards = groups.reduce((count, group) => count + group.cards.length, 0);
+
+  $("pn-emoji").innerHTML = icon("map");
+  $("pn-title").textContent = "Wordland 단어 도감";
+  $("pn-sub").textContent = collectedGroups + "/" + groups.length + "단어 · 예문 카드 " +
+    collectedMeaningCards + "/" + totalMeaningCards + "장";
+  const box = $("pn-opts");
+  box.innerHTML = "";
+  groups.sort((left, right) => {
+    const leftCollected = left.cards.some(card => collectedKeys.has(card.key));
+    const rightCollected = right.cards.some(card => collectedKeys.has(card.key));
+    return Number(rightCollected) - Number(leftCollected) || left.tier - right.tier ||
+      left.cards[0].w.localeCompare(right.cards[0].w);
+  }).forEach(group => {
+    const collectedCount = group.cards.filter(card => collectedKeys.has(card.key)).length;
+    const cardGroup = document.createElement("div");
+    cardGroup.className = "collection-word-group" + (collectedCount ? "" : " locked");
+    const senseIds = Array.from(new Set(group.cards.map(card => card.senseId)));
+    const senseMarkup = senseIds.map((senseId, senseIndex) => {
+      const senseCards = group.cards.filter(card => card.senseId === senseId);
+      const collectedSenseCards = senseCards.filter(card => collectedKeys.has(card.key));
+      const exampleMarkup = senseCards.map(card => {
+        const isCollected = collectedKeys.has(card.key);
+        return '<div class="collection-example-row' + (isCollected ? '' : ' locked') + '"><span>예문 ' +
+          (card.exampleIndex + 1) + '</span><span>' +
+          (isCollected ? escapeCollectionText(card.example) : '아직 만나지 않은 예문 카드') + '</span></div>';
+      }).join("");
+      return '<div class="collection-sense-row' + (collectedSenseCards.length ? '' : ' locked') + '"><b>뜻 ' +
+        (senseIndex + 1) + ' · ' + (collectedSenseCards.length ? escapeCollectionText(senseCards[0].ko) : '???') +
+        ' · ' + collectedSenseCards.length + '/' + senseCards.length + '장</b>' +
+        '<div class="collection-example-list">' + exampleMarkup + '</div></div>';
+    }).join("");
+    cardGroup.dataset.lemma = group.cards[0].w;
+    cardGroup.dataset.senseCount = String(senseIds.length);
+    cardGroup.dataset.cardCount = String(group.cards.length);
+    cardGroup.dataset.collectedCount = String(collectedCount);
+    cardGroup.innerHTML = '<div class="collection-word-head"><b>' +
+      (collectedCount ? escapeCollectionText(group.cards[0].w) : '????') + '</b><span>TIER ' +
+      group.tier + ' · 뜻 ' + senseIds.length + '개 · 예문 카드 ' + collectedCount + '/' + group.cards.length + '</span></div>' +
+      '<div class="collection-sense-list">' + senseMarkup + '</div>';
+    if(collectedCount) cardGroup.onclick = () => speak(group.cards[0].w);
+    box.appendChild(cardGroup);
+  });
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closePanel()">닫기</button>';
+  $("panel").classList.add("show");
 }
 
 function openDeckViewer(){
@@ -6209,7 +6548,9 @@ function openDeckViewer(){
     row.innerHTML = '<span class="deck-card-number">' + (index + 1) + '</span>' +
       '<span class="deck-card-copy"><b>' + escapeCollectionText(card.w) + '</b>' +
       '<span>' + escapeCollectionText(card.ko) + '</span>' +
-      '<small>TIER ' + card.tier + ' · ' + escapeCollectionText(card.tag) + '</small>' +
+      '<small>TIER ' + card.tier + ' · ' + escapeCollectionText(card.tag) +
+      (card.senseCount > 1 ? ' · 뜻 ' + (card.senseIndex + 1) + '/' + card.senseCount : '') +
+      ' · 예문 ' + (card.exampleIndex + 1) + '/' + card.exampleCount + '</small>' +
       '<em>' + escapeCollectionText(card.example) + '</em></span>';
     row.onclick = () => speak(card.w);
     box.appendChild(row);

@@ -30,4 +30,5 @@ node --test test_capture_rules.mjs test_facility_rules.mjs test_world_map.mjs te
 - 카드정리소 시험 및 카드 제거
 - MockUser와의 5라운드 랭크 대결
 - 라이벌과의 5라운드 스토리 비랭크 대결
-- 단어 도감과 덱 조회
+- `단어 → 뜻 → 예문 카드` 계층형 도감과 덱 조회
+- 같은 단어·같은 뜻이라도 예문이 다르면 별도 카드로 수집·편성
