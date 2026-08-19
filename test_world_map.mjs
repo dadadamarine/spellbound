@@ -36,6 +36,16 @@ test("맵 화면에서 현재 덱을 여는 버튼을 제공한다", () => {
   assert.equal(html.includes('>내 덱 <span id="deck-view-count">'), true);
 });
 
+test("새싹마을의 집은 영어박사님 집이며 내부에서 세 스타팅 덱을 고른다", () => {
+  assert.match(html, /id: "professor", label: "영어박사님 집"/);
+  assert.doesNotMatch(html, /label: "나의 집"/);
+  assert.match(html, /function openEnglishProfessorHouse/);
+  assert.match(html, /function renderStarterDeckChoices/);
+  assert.match(html, /function startStarterDeckExam/);
+  assert.match(html, /function submitStarterDeckExamAnswer/);
+  assert.match(html, /function finishStarterDeckExam/);
+});
+
 test("플레이어 시작 지점은 걸을 수 있는 새싹마을 길이다", () => {
   const api = loadWorldTestApi();
   const initialWorld = api.createWorldState();

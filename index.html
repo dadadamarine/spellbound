@@ -1052,6 +1052,77 @@
     font-style: normal; line-height: 1.55; color: var(--dim);
   }
 
+  .ov-card.professor-mode { max-width: 760px; }
+  .professor-room {
+    overflow: hidden; padding: 15px; border: 2px solid #6f5934;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 28px 28px,
+      linear-gradient(#283c32 0 58%, #745c3b 58% 62%, #5c452e 62% 100%);
+    box-shadow: inset 0 0 0 3px rgba(10,22,17,.45);
+  }
+  .professor-stage {
+    display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 15px; align-items: end;
+    margin-bottom: 15px;
+  }
+  .professor-avatar {
+    position: relative; display: grid; place-items: center; height: 96px;
+    font-size: 54px; line-height: 1; background: #d8c68e; border: 3px solid #352b22;
+    box-shadow: inset 0 -12px 0 rgba(78,57,35,.16), 4px 4px 0 rgba(12,24,18,.28);
+  }
+  .professor-avatar::after {
+    content: "PROF."; position: absolute; left: 0; right: 0; bottom: 4px; text-align: center;
+    font-family: var(--mono); font-size: 8px; font-weight: 900; letter-spacing: .15em; color: #372d24;
+  }
+  .professor-dialogue {
+    position: relative; min-height: 78px; padding: 13px 15px;
+    color: #26342e; background: #f4e7b3; border: 3px solid #352b22;
+    box-shadow: inset 0 0 0 2px #b69a60, 4px 4px 0 rgba(12,24,18,.28);
+    font-size: 13px; line-height: 1.7;
+  }
+  .professor-dialogue::before {
+    content: ""; position: absolute; left: -13px; bottom: 18px;
+    border-width: 8px 12px 8px 0; border-style: solid; border-color: transparent #352b22 transparent transparent;
+  }
+  .professor-dialogue b { color: #714a1f; }
+  .starter-deck-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+  .starter-deck-choice {
+    position: relative; min-width: 0; padding: 13px 11px 12px; cursor: pointer; text-align: left;
+    color: var(--text); background: rgba(8,24,18,.9); border: 2px solid #54705b;
+    box-shadow: 0 4px 0 rgba(19,29,22,.5); transition: transform .12s, border-color .12s, background .12s;
+  }
+  .starter-deck-choice:hover, .starter-deck-choice:focus-visible {
+    transform: translateY(-2px); border-color: var(--gold); outline: none;
+  }
+  .starter-deck-choice.selected {
+    color: #17251f; background: #f1dea0; border-color: #fff0b9;
+  }
+  .starter-deck-choice.locked:not(.selected) { opacity: .38; cursor: default; transform: none; }
+  .starter-deck-emblem { display: block; font-size: 27px; margin-bottom: 7px; }
+  .starter-deck-choice strong { display: block; font-size: 14px; color: var(--white); }
+  .starter-deck-choice.selected strong { color: #3f321f; }
+  .starter-deck-choice small {
+    display: block; margin-top: 4px; font-family: var(--mono); font-size: 9px;
+    letter-spacing: .08em; color: var(--gold);
+  }
+  .starter-deck-choice.selected small { color: #79562b; }
+  .starter-deck-choice p { margin: 8px 0 0; font-size: 10.5px; line-height: 1.55; color: var(--dim); }
+  .starter-deck-choice.selected p { color: #594d39; }
+  .starter-deck-samples {
+    display: block; margin-top: 9px; padding-top: 8px; border-top: 1px solid currentColor;
+    font-family: var(--mono); font-size: 9px; line-height: 1.5; overflow-wrap: anywhere;
+  }
+  .starter-exam-status {
+    display: flex; justify-content: space-between; gap: 12px; margin-bottom: 9px;
+    font-family: var(--mono); font-size: 10px; color: var(--gold);
+  }
+  .starter-exam-result { padding: 14px; text-align: center; background: rgba(8,24,18,.9); border: 2px solid #54705b; }
+  .starter-exam-result b { display: block; margin-bottom: 6px; font-size: 18px; color: var(--white); }
+  @media (max-width: 680px) {
+    .professor-stage { grid-template-columns: 65px minmax(0, 1fr); gap: 10px; }
+    .professor-avatar { height: 78px; font-size: 42px; }
+    .starter-deck-grid { grid-template-columns: 1fr; }
+  }
+
   .rl-tip {
     display: none; position: absolute; top: 30px; right: 0; z-index: 30;
     width: 250px; text-align: left; cursor: default;
@@ -1379,7 +1450,7 @@
       <div class="lang-pick">
         <div class="lang-card sel" id="lang-en">
           <div class="nm">ENGLISH</div>
-          <div class="ds">영어 500단어 · 처음 시작하면 기본 덱 50장 · 기초 명사에서 고급 동사까지 5단계</div>
+          <div class="ds">영어 500단어 · 영어박사님 집에서 스타팅 덱 25장 선택 · 기초 명사에서 고급 동사까지 5단계</div>
         </div>
       </div>
     </div>
@@ -2690,6 +2761,7 @@ function startGame(){
     deck: wordGameProgress.decks[LANG].slice(),
     collectionKeys: wordGameProgress.collections[LANG].slice(),
     encounterWord: null, captureExam: null, cardCleanup: null, duel: null,
+    pendingStarterDeckId: null, starterDeckExam: null,
     lastEncounterStep: -999,
     enc: null, phoenixUsed: false, relicMeta: {},
     missed: new Map(),
@@ -3538,9 +3610,9 @@ const WORLD_BUILDINGS = Object.freeze([
     message: "명예의 전당 — 비슷한 티어의 라이벌과 5라운드 랭크 대전을 치릅니다."
   }),
   Object.freeze({
-    id: "home", label: "나의 집", x: 3, y: 17, width: 5, height: 4,
+    id: "professor", label: "영어박사님 집", x: 3, y: 17, width: 5, height: 4,
     doorX: 5, doorY: 20, roof: "#6c6fa8", wall: "#d8c98f", trim: "#3d3f70",
-    message: "나의 집 — 모험을 시작한 작은 방입니다."
+    message: "영어박사님 집 — 박사님과 세 개의 스타팅 덱이 기다리고 있습니다."
   })
 ]);
 const WORLD_SIGNS = Object.freeze([
@@ -3824,8 +3896,11 @@ function updateWorldMapHud(){
   $("map-gold").textContent = S.deck ? S.deck.length : 0;
   $("map-lv").textContent = rating;
   const objective = $("world-objective-text");
-  if(objective) objective.textContent = (S.deck && S.deck.length ? "보유 카드 " + S.deck.length + "장. " : "") +
-    "풀숲에서 단어를 포획하고 시설을 찾아보세요.";
+  if(objective){
+    objective.textContent = S.wordGameProgress && !S.wordGameProgress.starterDeckId
+      ? "영어박사님 집에서 스타팅 덱 " + STARTER_DECK_SIZE + "장을 선택하세요."
+      : "보유 카드 " + S.deck.length + "장. 풀숲에서 단어를 포획하고 시설을 찾아보세요.";
+  }
   const canvas = $("world-canvas");
   if(canvas){
     canvas.dataset.worldX = S.world.x;
@@ -3899,6 +3974,7 @@ function interactWorld(){
   const building = WORLD_BUILDINGS.find(candidate =>
     candidate.doorX === targetX && candidate.doorY === targetY);
   if(building){
+    if(building.id === "professor"){ openEnglishProfessorHouse(); return; }
     if(building.id === "cards"){ openCardCenter(); return; }
     if(building.id === "hall" && typeof openHallOfFame === "function"){ openHallOfFame(); return; }
     showWorldMessage(building.message, 3600);
@@ -3922,8 +3998,24 @@ const CAPTURE_PASS_RATIO = 0.9;
 const WORD_ENCOUNTER_CHANCE = 0.22;
 const WORD_ENCOUNTER_COOLDOWN_STEPS = 3;
 const WORD_ANSWER_TIME_LIMIT_SECONDS = 7;
-const STARTER_DECK_SIZE = 50;
-const WORD_GAME_PROGRESS_VERSION = 3;
+const STARTER_DECK_SIZE = 25;
+const STARTER_DECK_EXAM_RATIO = 0.2;
+const STARTER_DECK_PASS_RATIO = 0.8;
+const WORD_GAME_PROGRESS_VERSION = 4;
+const STARTER_DECK_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    id: "daily", name: "생활 덱", emblem: "🍎", startIndex: 0,
+    description: "집·학교·음식처럼 매일 만나는 단어로 구성된 안정적인 덱입니다."
+  }),
+  Object.freeze({
+    id: "bond", name: "관계 덱", emblem: "💛", startIndex: 25,
+    description: "가족·사람·이야기와 감정을 표현하는 단어가 중심인 덱입니다."
+  }),
+  Object.freeze({
+    id: "adventure", name: "모험 덱", emblem: "🌉", startIndex: 50,
+    description: "자연·여행·도구처럼 월드 탐험에 어울리는 단어를 모은 덱입니다."
+  })
+]);
 let wordAnswerTimerId = null;
 let wordAnswerTimerToken = 0;
 
@@ -4041,23 +4133,65 @@ function drawDuelHandAndConsumeDeck(remainingDeck, handSize){
   return { hand, nextDeck };
 }
 
-function createStarterDeck(wordBank, language){
+function getStarterDeckDefinitions(){
+  return STARTER_DECK_DEFINITIONS.map(definition => Object.assign({}, definition));
+}
+
+function getStarterDeckExamSize(deckSize){
+  const safeDeckSize = Math.max(0, Math.floor(Number(deckSize) || 0));
+  return Math.ceil(safeDeckSize * STARTER_DECK_EXAM_RATIO);
+}
+
+function getStarterDeckRequiredCorrect(questionCount){
+  const safeQuestionCount = Math.max(0, Math.floor(Number(questionCount) || 0));
+  return Math.ceil(safeQuestionCount * STARTER_DECK_PASS_RATIO);
+}
+
+function canClaimStarterDeck(correctCount, questionCount){
+  const safeCorrectCount = Math.max(0, Math.floor(Number(correctCount) || 0));
+  const safeQuestionCount = Math.max(0, Math.floor(Number(questionCount) || 0));
+  return safeQuestionCount > 0 && safeCorrectCount >= getStarterDeckRequiredCorrect(safeQuestionCount);
+}
+
+function createStarterDeck(wordBank, language, starterDeckId){
   const tierOneEntries = wordBank && Array.isArray(wordBank[1]) ? wordBank[1] : [];
-  return tierOneEntries.slice(0, STARTER_DECK_SIZE)
+  const definition = STARTER_DECK_DEFINITIONS.find(candidate => candidate.id === starterDeckId);
+  if(!definition) return [];
+  return tierOneEntries.slice(definition.startIndex, definition.startIndex + STARTER_DECK_SIZE)
     .map(entry => createWordCard(entry, 1, language));
 }
 
 function createDefaultWordGameProgress(){
-  const starterDeck = createStarterDeck(WORDS_EN, "en");
   return {
     version: WORD_GAME_PROGRESS_VERSION,
-    decks: { en: starterDeck },
-    collections: { en: starterDeck.map(card => card.key) },
+    starterDeckId: null,
+    decks: { en: [] },
+    collections: { en: [] },
     rating: 1000,
     wins: 0,
     losses: 0,
     draws: 0
   };
+}
+
+function applyStarterDeckChoice(progress, wordBank, language, starterDeckId){
+  const safeProgress = progress && typeof progress === "object" ? progress : createDefaultWordGameProgress();
+  if(safeProgress.starterDeckId) return safeProgress;
+  const starterDeck = createStarterDeck(wordBank, language, starterDeckId);
+  if(starterDeck.length !== STARTER_DECK_SIZE) return safeProgress;
+  return Object.assign({}, safeProgress, {
+    version: WORD_GAME_PROGRESS_VERSION,
+    starterDeckId,
+    decks: Object.assign({}, safeProgress.decks, { [language]: starterDeck }),
+    collections: Object.assign({}, safeProgress.collections, {
+      [language]: starterDeck.map(card => card.key)
+    })
+  });
+}
+
+function createLegacyStarterDeck(wordBank, language){
+  const tierOneEntries = wordBank && Array.isArray(wordBank[1]) ? wordBank[1] : [];
+  return tierOneEntries.slice(0, 50).map(entry => createWordCard(entry, 1, language));
 }
 
 function sanitizeStoredCard(card, language){
@@ -4079,9 +4213,10 @@ function sanitizeWordGameProgress(rawProgress){
       const card = sanitizeStoredCard(rawCard, language);
       return card ? addCardToDeck(deck, card) : deck;
     }, []);
-    if(storedVersion < 2 && decks[language].length < STARTER_DECK_SIZE){
-      decks[language] = fallback.decks[language].reduce((deck, card) =>
-        deck.length < STARTER_DECK_SIZE ? addCardToDeck(deck, card) : deck,
+    if(storedVersion < 2 && decks[language].length < 50){
+      const legacyStarterDeck = createLegacyStarterDeck(WORDS_EN, language);
+      decks[language] = legacyStarterDeck.reduce((deck, card) =>
+        deck.length < 50 ? addCardToDeck(deck, card) : deck,
       decks[language]);
     }
     const storedCollectionKeys = rawProgress.collections && Array.isArray(rawProgress.collections[language])
@@ -4095,8 +4230,15 @@ function sanitizeWordGameProgress(rawProgress){
   });
   const rating = Number.isFinite(Number(rawProgress.rating))
     ? Math.max(0, Math.min(3000, Math.round(Number(rawProgress.rating)))) : fallback.rating;
+  const requestedStarterDeckId = typeof rawProgress.starterDeckId === "string"
+    ? rawProgress.starterDeckId.trim() : "";
+  const isKnownStarterDeck = STARTER_DECK_DEFINITIONS.some(definition =>
+    definition.id === requestedStarterDeckId);
+  const starterDeckId = isKnownStarterDeck ? requestedStarterDeckId
+    : decks[GAME_LANGUAGE].length ? "legacy" : null;
   return {
     version: WORD_GAME_PROGRESS_VERSION,
+    starterDeckId,
     decks,
     collections,
     rating,
@@ -4230,6 +4372,180 @@ function insertCollectionChar(character){
   input.focus();
 }
 
+function setProfessorPanelMode(enabled){
+  const card = $("panel") && $("panel").querySelector(".ov-card");
+  if(card) card.classList.toggle("professor-mode", Boolean(enabled));
+}
+
+function buildProfessorStageMarkup(message){
+  return '<div class="professor-stage"><div class="professor-avatar" role="img" ' +
+    'aria-label="영어박사님">🧑‍🏫</div><div class="professor-dialogue">' + message + '</div></div>';
+}
+
+function buildStarterDeckChoiceMarkup(definition, selectedId, locked){
+  const deck = createStarterDeck(L().bank, LANG, definition.id);
+  const isSelected = definition.id === selectedId;
+  const className = "starter-deck-choice" + (isSelected ? " selected" : "") +
+    (locked && !isSelected ? " locked" : "");
+  const clickHandler = locked ? "" : ' onclick="selectStarterDeck(\'' + definition.id + '\')"';
+  const samples = deck.slice(0, 4).map(card => escapeCollectionText(card.w)).join(" · ");
+  return '<button type="button" class="' + className + '" aria-pressed="' + isSelected + '"' + clickHandler + '>' +
+    '<span class="starter-deck-emblem" aria-hidden="true">' + definition.emblem + '</span>' +
+    '<strong>' + escapeCollectionText(definition.name) + '</strong><small>' + STARTER_DECK_SIZE + ' CARDS · TIER 1</small>' +
+    '<p>' + escapeCollectionText(definition.description) + '</p>' +
+    '<span class="starter-deck-samples">' + samples + '</span></button>';
+}
+
+function renderStarterDeckChoices(){
+  const savedStarterDeckId = S.wordGameProgress && S.wordGameProgress.starterDeckId;
+  const locked = Boolean(savedStarterDeckId);
+  const selectedId = savedStarterDeckId === "legacy" ? null : savedStarterDeckId || S.pendingStarterDeckId;
+  const examSize = getStarterDeckExamSize(STARTER_DECK_SIZE);
+  const requiredCorrect = getStarterDeckRequiredCorrect(examSize);
+  const message = locked
+    ? savedStarterDeckId === "legacy"
+      ? "이미 모험을 시작한 기록이 있구나. <b>기존 덱은 그대로 보존</b>해 두었단다."
+      : "네가 고른 <b>스타팅 덱</b>이 잘 성장하고 있구나. 덱 선택은 한 번만 가능하단다."
+    : "여기 세 개의 스타팅 덱이 있단다. 하나를 고르면 그 덱의 <b>20%인 " + examSize +
+      "문제</b>를 시험하마. <b>" + requiredCorrect + "문제 이상</b> 맞히면 네 덱이 된다.";
+  const deckMarkup = getStarterDeckDefinitions().map(definition =>
+    buildStarterDeckChoiceMarkup(definition, selectedId, locked)).join("");
+
+  $("pn-emoji").textContent = "🧑‍🏫";
+  $("pn-title").textContent = "영어박사님 집";
+  $("pn-sub").textContent = locked ? "스타팅 덱은 변경할 수 없습니다." : "세 덱 중 하나를 선택하세요.";
+  $("pn-opts").innerHTML = '<div class="professor-room">' + buildProfessorStageMarkup(message) +
+    '<div class="starter-deck-grid">' + deckMarkup + '</div></div>';
+  if(locked){
+    $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">나가기</button>';
+  } else if(selectedId){
+    $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="startStarterDeckExam(\'' +
+      selectedId + '\')">이 덱의 ' + examSize + '문제 시험 시작</button>' +
+      '<button class="ov-btn ghost" type="button" onclick="closeEnglishProfessorHouse()">나중에 고른다</button>';
+  } else {
+    $("pn-foot").innerHTML = '<button class="ov-btn ghost" type="button" onclick="closeEnglishProfessorHouse()">나중에 고른다</button>';
+  }
+}
+
+function openEnglishProfessorHouse(){
+  if(!S) return;
+  clearWordAnswerTimer();
+  setDuelPanelMode(false);
+  setProfessorPanelMode(true);
+  S.pendingStarterDeckId = null;
+  S.starterDeckExam = null;
+  renderStarterDeckChoices();
+  $("panel").classList.add("show");
+}
+
+function selectStarterDeck(starterDeckId){
+  if(!S || S.wordGameProgress.starterDeckId) return;
+  if(!STARTER_DECK_DEFINITIONS.some(definition => definition.id === starterDeckId)) return;
+  S.pendingStarterDeckId = starterDeckId;
+  renderStarterDeckChoices();
+}
+
+function startStarterDeckExam(starterDeckId){
+  if(!S || S.wordGameProgress.starterDeckId) return;
+  const deck = createStarterDeck(L().bank, LANG, starterDeckId);
+  const questionCount = getStarterDeckExamSize(deck.length);
+  if(deck.length !== STARTER_DECK_SIZE || questionCount === 0) return;
+  S.pendingStarterDeckId = starterDeckId;
+  S.starterDeckExam = {
+    starterDeckId,
+    questions: selectRandomCards(deck, questionCount),
+    index: 0,
+    correct: 0,
+    results: []
+  };
+  renderStarterDeckExamQuestion();
+}
+
+function renderStarterDeckExamQuestion(){
+  const exam = S && S.starterDeckExam;
+  if(!exam) return;
+  const card = exam.questions[exam.index];
+  const required = getStarterDeckRequiredCorrect(exam.questions.length);
+  $("pn-emoji").textContent = "🧑‍🏫";
+  $("pn-title").textContent = "스타팅 덱 시험";
+  $("pn-sub").textContent = exam.questions.length + "문제 중 " + required +
+    "문제 이상 맞히면 선택한 " + STARTER_DECK_SIZE + "장 덱을 받습니다.";
+  $("pn-opts").innerHTML = '<div class="professor-room">' +
+    buildProfessorStageMarkup("뜻과 빈칸 예문을 보고 영어 단어를 맞혀 보렴. <b>각 문제 제한시간은 7초</b>란다.") +
+    '<div class="starter-exam-status"><span>QUESTION ' + (exam.index + 1) + "/" + exam.questions.length +
+    '</span><span>CORRECT ' + exam.correct + '</span></div>' +
+    buildCollectionPromptMarkup(card, "STARTER TEST · " + (exam.index + 1) + " / " + exam.questions.length,
+      "starter-deck-answer") + '</div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="submitStarterDeckExamAnswer()">정답 제출</button>';
+  focusCollectionInput("starter-deck-answer", submitStarterDeckExamAnswer);
+  startWordAnswerTimer(() => submitStarterDeckExamAnswer(true));
+}
+
+function submitStarterDeckExamAnswer(timedOut){
+  const exam = S && S.starterDeckExam;
+  if(!exam) return;
+  const input = $("starter-deck-answer");
+  const answer = input ? input.value.trim() : "";
+  if(!timedOut && !answer){ if(input) input.focus(); return; }
+  clearWordAnswerTimer();
+  const card = exam.questions[exam.index];
+  const correct = isTimedCardAnswerCorrect(answer, card, Boolean(timedOut), L().hasAccentRule);
+  const nextExam = Object.assign({}, exam, {
+    index: exam.index + 1,
+    correct: exam.correct + (correct ? 1 : 0),
+    results: exam.results.concat([{ key: card.key, correct, answer, timedOut: Boolean(timedOut) }])
+  });
+  S.starterDeckExam = nextExam;
+  if(nextExam.index >= nextExam.questions.length) finishStarterDeckExam();
+  else renderStarterDeckExamQuestion();
+}
+
+function finishStarterDeckExam(){
+  const exam = S && S.starterDeckExam;
+  if(!exam) return;
+  clearWordAnswerTimer();
+  const total = exam.questions.length;
+  const passed = canClaimStarterDeck(exam.correct, total);
+  const definition = STARTER_DECK_DEFINITIONS.find(candidate => candidate.id === exam.starterDeckId);
+  if(passed){
+    const nextProgress = applyStarterDeckChoice(S.wordGameProgress, L().bank, LANG, exam.starterDeckId);
+    S.wordGameProgress = nextProgress;
+    S.deck = nextProgress.decks[LANG].slice();
+    S.collectionKeys = nextProgress.collections[LANG].slice();
+    saveWordGameProgress(nextProgress);
+    updateWorldMapHud();
+    updateCollectionProgress();
+  }
+  S.starterDeckExam = null;
+  $("pn-title").textContent = passed ? "스타팅 덱 획득!" : "조금만 더 복습하자";
+  $("pn-sub").textContent = exam.correct + "/" + total + " 정답 · 통과 기준 " +
+    getStarterDeckRequiredCorrect(total) + "/" + total;
+  const message = passed
+    ? "훌륭하구나! <b>" + escapeCollectionText(definition.name) + " " + STARTER_DECK_SIZE +
+      "장</b>을 네 덱과 도감에 등록했다."
+    : "이번에는 덱을 지급할 수 없구나. 같은 덱에 다시 도전하거나 다른 덱을 골라도 된단다.";
+  $("pn-opts").innerHTML = '<div class="professor-room">' + buildProfessorStageMarkup(message) +
+    '<div class="starter-exam-result"><b>' + exam.correct + " / " + total + '</b>' +
+    (passed ? "덱과 도감에 " + STARTER_DECK_SIZE + "장이 등록되었습니다."
+      : getStarterDeckRequiredCorrect(total) + "문제 이상 맞혀야 통과합니다.") + '</div></div>';
+  $("pn-foot").innerHTML = passed
+    ? '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">모험 시작</button>'
+    : '<button class="ov-btn" type="button" onclick="startStarterDeckExam(\'' + exam.starterDeckId + '\')">같은 덱 재시험</button>' +
+      '<button class="ov-btn ghost" type="button" onclick="renderStarterDeckChoices()">다른 덱 고르기</button>';
+}
+
+function closeEnglishProfessorHouse(){
+  clearWordAnswerTimer();
+  if(S){
+    S.starterDeckExam = null;
+    S.pendingStarterDeckId = null;
+  }
+  setProfessorPanelMode(false);
+  $("panel").classList.remove("show");
+  const canvas = $("world-canvas");
+  if(canvas) canvas.focus({ preventScroll: true });
+}
+
 function getWorldEncounterTier(){
   return Math.min(5, 1 + Math.floor((S.world && S.world.steps || 0) / 45));
 }
@@ -4246,6 +4562,10 @@ function pickWorldEncounterCard(){
 }
 
 function maybeStartWorldEncounter(terrain){
+  if(!S.wordGameProgress || !S.wordGameProgress.starterDeckId){
+    if(terrain === "tallGrass") showWorldMessage("먼저 영어박사님 집에서 스타팅 덱을 선택하세요.", 2200);
+    return false;
+  }
   if(!shouldStartWordEncounter(terrain, S.world.steps, S.lastEncounterStep, Math.random())) return false;
   const card = pickWorldEncounterCard();
   if(!card) return false;
@@ -5024,7 +5344,10 @@ function startRun(){
   showScreen("map");
   AUDIO.scene("map");
   renderMap();
-  showWorldMessage("방향키나 WASD로 걸어 보세요. 건물 앞에서는 Enter 또는 A를 누릅니다.", 4200);
+  const startMessage = S.wordGameProgress && !S.wordGameProgress.starterDeckId
+    ? "영어박사님 집으로 가서 세 스타팅 덱 중 하나를 선택하세요."
+    : "방향키나 WASD로 걸어 보세요. 건물 앞에서는 Enter 또는 A를 누릅니다.";
+  showWorldMessage(startMessage, 4200);
 }
 
 function renderMap(){
@@ -5479,7 +5802,8 @@ document.addEventListener("keydown", e => {
     if((e.key === "r" || e.key === "R") && !open){ e.preventDefault(); openRelicBook(); return; }
     if(e.key === "Escape" && open){
       e.preventDefault();
-      if(S.encounterWord) closeCollectionPanel();
+      if($("panel").querySelector(".ov-card.professor-mode")) closeEnglishProfessorHouse();
+      else if(S.encounterWord) closeCollectionPanel();
       else if(S.cardCleanup || S.duel) closeFacilityPanel();
       else closePanel();
       return;

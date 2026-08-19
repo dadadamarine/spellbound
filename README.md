@@ -16,10 +16,9 @@ node --test test_capture_rules.mjs test_facility_rules.mjs test_world_map.mjs
 
 ## 현재 범위
 
-- 쉬운 영어 단어 50장으로 시작하는 기본 덱
+- 영어박사님 집에서 세 종류의 쉬운 25장 덱 중 하나를 시험으로 획득
 - 맵 탐험과 제한시간 단어 포획
 - 덱 기반 포획 복구 시험
 - 카드정리소 시험 및 카드 제거
 - MockUser와의 5라운드 랭크 대결
 - 단어 도감과 덱 조회
-

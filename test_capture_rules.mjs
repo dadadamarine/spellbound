@@ -24,7 +24,7 @@ function loadCaptureTestApi() {
   const source = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, createStarterDeck, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
+    `${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
     sandbox
   );
   return sandbox.__captureTestApi;
@@ -110,17 +110,49 @@ test("모든 단어 입력 제한시간은 일반 단어 기준 7초다", () => 
   assert.equal(api.isTimedCardAnswerCorrect("apple", card, true, false), false);
 });
 
-test("새 사용자는 중복 없는 Tier 1 쉬운 단어 50장으로 시작한다", () => {
+test("새 사용자는 영어박사님 집에서 스타팅 덱을 고르기 전 빈 덱으로 시작한다", () => {
   const api = loadCaptureTestApi();
   const progress = api.createDefaultWordGameProgress();
-  const starterDeck = progress.decks.en;
 
-  assert.equal(starterDeck.length, 50);
-  assert.equal(new Set(starterDeck.map(card => card.key)).size, 50);
-  assert.equal(starterDeck.every(card => card.lang === "en" && card.tier === 1), true);
-  assert.equal(starterDeck.slice(0, 3).map(card => card.w).join(","), "apple,water,house");
-  assert.equal(progress.collections.en.length, 50);
-  assert.deepEqual(new Set(progress.collections.en), new Set(starterDeck.map(card => card.key)));
+  assert.equal(progress.starterDeckId, null);
+  assert.equal(progress.decks.en.length, 0);
+  assert.equal(progress.collections.en.length, 0);
+});
+
+test("영어박사님이 제시하는 세 스타팅 덱은 서로 겹치지 않는 Tier 1 카드 25장이다", () => {
+  const api = loadCaptureTestApi();
+  const definitions = api.getStarterDeckDefinitions();
+  const decks = definitions.map(definition => api.createStarterDeck(loadEnglishWordBank(), "en", definition.id));
+
+  assert.equal(definitions.length, 3);
+  decks.forEach(deck => {
+    assert.equal(deck.length, 25);
+    assert.equal(new Set(deck.map(card => card.key)).size, 25);
+    assert.equal(deck.every(card => card.lang === "en" && card.tier === 1), true);
+  });
+  assert.equal(new Set(decks.flat().map(card => card.key)).size, 75);
+  assert.equal(decks.map(deck => deck[0].w).join(","), "apple,family,bridge");
+});
+
+test("스타팅 덱을 확정하면 선택한 25장만 덱과 도감에 등록된다", () => {
+  const api = loadCaptureTestApi();
+  const initialProgress = api.createDefaultWordGameProgress();
+  const selected = api.applyStarterDeckChoice(initialProgress, loadEnglishWordBank(), "en", "adventure");
+
+  assert.equal(selected.starterDeckId, "adventure");
+  assert.equal(selected.decks.en.length, 25);
+  assert.equal(selected.collections.en.length, 25);
+  assert.equal(selected.decks.en[0].w, "bridge");
+  assert.deepEqual(new Set(selected.collections.en), new Set(selected.decks.en.map(card => card.key)));
+});
+
+test("스타팅 덱 시험은 선택한 25장의 20%인 5장을 출제하고 4문제 이상 맞혀야 통과한다", () => {
+  const api = loadCaptureTestApi();
+
+  assert.equal(api.getStarterDeckExamSize(25), 5);
+  assert.equal(api.getStarterDeckRequiredCorrect(5), 4);
+  assert.equal(api.canClaimStarterDeck(4, 5), true);
+  assert.equal(api.canClaimStarterDeck(3, 5), false);
 });
 
 test("포획한 카드는 도감에 중복 없이 등록된다", () => {
@@ -137,21 +169,23 @@ test("포획한 카드는 도감에 중복 없이 등록된다", () => {
 
 test("덱에서 카드를 제거해도 도감 등록은 유지된다", () => {
   const api = loadCaptureTestApi();
-  const progress = api.createDefaultWordGameProgress();
+  const progress = api.applyStarterDeckChoice(
+    api.createDefaultWordGameProgress(), loadEnglishWordBank(), "en", "daily"
+  );
   const removedFromDeck = {
     ...progress,
-    decks: { en: progress.decks.en.slice(0, 49) }
+    decks: { en: progress.decks.en.slice(0, 24) }
   };
 
   const sanitized = api.sanitizeWordGameProgress(removedFromDeck);
 
-  assert.equal(sanitized.decks.en.length, 49);
-  assert.equal(sanitized.collections.en.length, 50);
+  assert.equal(sanitized.decks.en.length, 24);
+  assert.equal(sanitized.collections.en.length, 25);
 });
 
 test("구버전의 5장 저장 덱도 게임 시작 시 실제 50장 덱으로 마이그레이션한다", () => {
   const api = loadCaptureTestApi();
-  const starterDeck = api.createDefaultWordGameProgress().decks.en;
+  const starterDeck = api.createStarterDeck(loadEnglishWordBank(), "en", "daily");
   const legacyProgress = {
     version: 1,
     decks: { en: starterDeck.slice(0, 5) },
@@ -163,10 +197,11 @@ test("구버전의 5장 저장 덱도 게임 시작 시 실제 50장 덱으로 �
 
   const migrated = api.sanitizeWordGameProgress(legacyProgress);
 
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.decks.en.length, 50);
   assert.equal(new Set(migrated.decks.en.map(card => card.key)).size, 50);
   assert.equal(migrated.collections.en.length, 50);
+  assert.equal(migrated.starterDeckId, "legacy");
 });
 
 test("Tier 5 장문 단어 2개는 고유 예문과 허용 철자를 가진다", () => {
