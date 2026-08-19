@@ -5175,12 +5175,17 @@ function openEnglishProfessorHouse(){
   clearWordAnswerTimer();
   setDuelPanelMode(false);
   setProfessorPanelMode(true);
-  S.pendingStarterDeckId = S.wordGameProgress.starterDeckCandidateId || null;
+  const candidateId = S.wordGameProgress.starterDeckCandidateId || null;
+  S.pendingStarterDeckId = candidateId;
   S.starterDeckExam = null;
   S.passedStarterDeckId = null;
   $("panel").classList.add("show");
   if(!sanitizeStoryProgress(S.wordGameProgress.story, false).flags.prologueSeen){
     renderStoryPrologueScene(0);
+    return;
+  }
+  if(candidateId && !S.wordGameProgress.starterDeckId){
+    startStarterDeckExam(candidateId);
     return;
   }
   renderStarterDeckChoices();

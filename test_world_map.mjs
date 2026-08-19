@@ -73,6 +73,15 @@ test("스타팅 덱 카드를 누르면 별도 확인 없이 즉시 5문제 시�
   assert.doesNotMatch(selectionSource, /renderStarterDeckChoices\(\)/);
 });
 
+test("구버전에서 후보 덱만 저장된 사용자는 박사님 집 재입장 시 시험을 자동 재개한다", () => {
+  const startIndex = html.indexOf("function openEnglishProfessorHouse");
+  const endIndex = html.indexOf("function selectStarterDeck", startIndex);
+  const professorHouseSource = html.slice(startIndex, endIndex);
+
+  assert.match(professorHouseSource, /starterDeckCandidateId/);
+  assert.match(professorHouseSource, /startStarterDeckExam\(candidateId\)/);
+});
+
 test("플레이어 시작 지점은 걸을 수 있는 새싹마을 길이다", () => {
   const api = loadWorldTestApi();
   const initialWorld = api.createWorldState();
