@@ -82,6 +82,14 @@ test("구버전에서 후보 덱만 저장된 사용자는 박사님 집 재입�
   assert.match(professorHouseSource, /startStarterDeckExam\(candidateId\)/);
 });
 
+test("이미 덱이 있는 사용자는 박사님 집에서 확인 후 새 모험을 시작할 수 있다", () => {
+  assert.match(html, /새 모험 시작/);
+  assert.match(html, /기존 덱·도감·스토리·랭크 기록이 모두 초기화됩니다/);
+  assert.match(html, /function openWordlandRestartConfirmation/);
+  assert.match(html, /function confirmWordlandRestart/);
+  assert.match(html, /저장 초기화하고 다시 시작/);
+});
+
 test("플레이어 시작 지점은 걸을 수 있는 새싹마을 길이다", () => {
   const api = loadWorldTestApi();
   const initialWorld = api.createWorldState();

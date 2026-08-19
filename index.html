@@ -4807,6 +4807,10 @@ function createDefaultWordGameProgress(){
   };
 }
 
+function createRestartedWordGameProgress(){
+  return createDefaultWordGameProgress();
+}
+
 function applyStarterDeckCandidateChoice(progress, starterDeckId){
   const safeProgress = progress && typeof progress === "object" ? progress : createDefaultWordGameProgress();
   if(safeProgress.starterDeckId || safeProgress.starterDeckCandidateId) return safeProgress;
@@ -5160,7 +5164,8 @@ function renderStarterDeckChoices(){
   $("pn-opts").innerHTML = '<div class="professor-room">' + buildProfessorStageMarkup(message) +
     '<div class="starter-deck-grid">' + deckMarkup + '</div></div>';
   if(hasClaimedDeck){
-    $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">나가기</button>';
+    $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">나가기</button>' +
+      '<button class="ov-btn ghost" type="button" onclick="openWordlandRestartConfirmation()">새 모험 시작</button>';
   } else if(selectedId){
     $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="startStarterDeckExam(\'' +
       selectedId + '\')">이 덱의 ' + examSize + '문제 시험 시작</button>' +
@@ -5168,6 +5173,35 @@ function renderStarterDeckChoices(){
   } else {
     $("pn-foot").innerHTML = '<button class="ov-btn ghost" type="button" onclick="closeEnglishProfessorHouse()">나중에 고른다</button>';
   }
+}
+
+function openWordlandRestartConfirmation(){
+  if(!S || !S.wordGameProgress || !S.wordGameProgress.starterDeckId) return;
+  clearWordAnswerTimer();
+  $("pn-emoji").textContent = "⚠️";
+  $("pn-title").textContent = "새 모험 시작";
+  $("pn-sub").textContent = "현재 Wordland 저장 기록을 초기화합니다.";
+  $("pn-opts").innerHTML = '<div class="professor-room">' + buildProfessorStageMarkup(
+    '<b>기존 덱·도감·스토리·랭크 기록이 모두 초기화됩니다.</b> 이 작업은 되돌릴 수 없단다. 정말 처음부터 시작하겠니?') + '</div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="confirmWordlandRestart()">' +
+    '저장 초기화하고 다시 시작</button>' +
+    '<button class="ov-btn ghost" type="button" onclick="renderStarterDeckChoices()">취소</button>';
+}
+
+function confirmWordlandRestart(){
+  if(!S || !S.wordGameProgress || !S.wordGameProgress.starterDeckId) return;
+  const restartedProgress = createRestartedWordGameProgress(S.wordGameProgress);
+  S.wordGameProgress = restartedProgress;
+  S.deck = [];
+  S.collectionKeys = [];
+  S.pendingStarterDeckId = null;
+  S.starterDeckExam = null;
+  S.passedStarterDeckId = null;
+  S.world = createWorldState();
+  saveWordGameProgress(restartedProgress);
+  updateWorldMapHud();
+  updateCollectionProgress();
+  renderStoryPrologueScene(0);
 }
 
 function openEnglishProfessorHouse(){

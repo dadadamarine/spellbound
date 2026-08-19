@@ -31,7 +31,7 @@ function loadCaptureTestApi() {
   const source = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${storySource}\n${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, createWordCards, getCardLemmaKey, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckCandidateChoice, clearStarterDeckCandidateChoice, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
+    `${storySource}\n${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, createWordCards, getCardLemmaKey, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckCandidateChoice, clearStarterDeckCandidateChoice, applyStarterDeckChoice, createDefaultWordGameProgress, createRestartedWordGameProgress, sanitizeWordGameProgress };`,
     sandbox
   );
   return sandbox.__captureTestApi;
@@ -230,6 +230,27 @@ test("새 사용자는 영어박사님 집에서 스타팅 덱을 고르기 전 
   assert.equal(progress.starterDeckCandidateId, null);
   assert.equal(progress.decks.en.length, 0);
   assert.equal(progress.collections.en.length, 0);
+});
+
+test("새 모험 시작은 기존 덱·도감·랭크·스토리를 초기 상태로 되돌린다", () => {
+  const api = loadCaptureTestApi();
+  const restarted = api.createRestartedWordGameProgress({
+    starterDeckId: "legacy",
+    decks: { en: [{ key: "en:apple" }] },
+    collections: { en: ["en:apple"] },
+    rating: 1400,
+    wins: 10,
+    losses: 2,
+    draws: 1
+  });
+
+  assert.equal(restarted.starterDeckId, null);
+  assert.equal(restarted.starterDeckCandidateId, null);
+  assert.deepEqual(Array.from(restarted.decks.en), []);
+  assert.deepEqual(Array.from(restarted.collections.en), []);
+  assert.equal(restarted.rating, 1000);
+  assert.equal(restarted.wins + restarted.losses + restarted.draws, 0);
+  assert.equal(restarted.story.flags.prologueSeen, false);
 });
 
 test("영어박사님이 제시하는 세 스타팅 덱은 서로 겹치지 않는 Tier 1 카드 25장이다", () => {
