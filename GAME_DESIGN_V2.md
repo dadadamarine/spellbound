@@ -5,6 +5,7 @@
 - 현재 범위: 영어 500단어, 싱글 플레이, MOCK USER 대전
 - 원문 보존: [게임_기획_원문.md](게임_기획_원문.md)
 - 현재 구현 계약: [GAME_GOAL.md](GAME_GOAL.md)
+- 메인 스토리: [GAME_STORY.md](GAME_STORY.md)
 
 ## 1. 한 줄 정의
 

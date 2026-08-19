@@ -8,6 +8,12 @@ GitHub Pages: https://dadadamarine.github.io/spellbound/
 
 별도의 설치나 빌드 없이 `index.html`만으로 실행됩니다.
 
+## 문서
+
+- [메인 스토리](GAME_STORY.md)
+- [기능 기획 V2](GAME_DESIGN_V2.md)
+- [게임 목표 계약](GAME_GOAL.md)
+
 ## 테스트
 
 ```bash
