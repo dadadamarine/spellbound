@@ -646,14 +646,26 @@
   }
   .collection-input:focus { border-color: var(--sky); box-shadow: 0 0 0 2px var(--sky-wash); }
   .collection-timer {
-    display: flex; justify-content: space-between; align-items: center;
+    display: grid; grid-template-columns: auto minmax(90px, 1fr) auto; gap: 10px; align-items: center;
     margin-top: 10px; padding: 7px 9px; font-family: var(--mono);
     font-size: 10px; letter-spacing: .08em; color: var(--dim);
     background: var(--bg); border: 1px solid var(--line-2);
   }
+  .collection-timer-track {
+    display: block; overflow: hidden; height: 7px; background: var(--line);
+    border: 1px solid var(--line-2);
+  }
+  .collection-timer-fill {
+    display: block; width: 100%; height: 100%; background: var(--sky);
+    box-shadow: 0 0 8px rgba(63,184,240,.4); transition: width .18s linear, background .2s;
+  }
   .collection-timer strong { font-size: 13px; color: var(--sky); }
   .collection-timer.warning strong { color: var(--gold); }
+  .collection-timer.warning .collection-timer-fill { background: var(--gold); }
   .collection-timer.danger strong { color: var(--warn); }
+  .collection-timer.danger .collection-timer-fill {
+    background: var(--warn); box-shadow: 0 0 9px rgba(232,102,63,.55);
+  }
   .collection-progress {
     display: flex; justify-content: space-between; gap: 12px; margin-bottom: 9px;
     font-family: var(--mono); font-size: 10px; color: var(--dim);
@@ -1084,6 +1096,29 @@
     border-width: 8px 12px 8px 0; border-style: solid; border-color: transparent #352b22 transparent transparent;
   }
   .professor-dialogue b { color: #714a1f; }
+  .story-scene {
+    min-height: 280px; padding: 24px; display: grid; align-content: center; gap: 16px;
+    color: #26342e; background: #d8c991; border: 3px solid #352b22;
+    box-shadow: inset 0 0 0 3px #a48c58;
+  }
+  .story-scene-label {
+    font-family: var(--mono); font-size: 10px; font-weight: 900; letter-spacing: .18em;
+    color: #735d38;
+  }
+  .story-letter {
+    max-width: 560px; margin: 0 auto; padding: 25px 28px; width: 100%;
+    font-family: var(--mono); font-size: 13px; line-height: 1.9; color: #332d25;
+    background: #f4eccd; border: 2px solid #78694d; transform: rotate(-.5deg);
+    box-shadow: 6px 7px 0 rgba(53,43,34,.2);
+  }
+  .story-letter b { color: #8b3131; }
+  .story-scene-copy { font-size: 14px; line-height: 1.85; color: #332d25; }
+  .story-scene-copy b { color: #713c2c; }
+  .story-sign-preview {
+    margin: 0 auto; padding: 15px 24px; font-family: var(--mono); font-size: 19px;
+    font-weight: 900; text-align: center; color: #2b261d; background: #e9bf62;
+    border: 4px solid #684a31; box-shadow: 0 10px 0 #684a31;
+  }
   .starter-deck-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
   .starter-deck-choice {
     position: relative; min-width: 0; padding: 13px 11px 12px; cursor: pointer; text-align: left;
@@ -3583,6 +3618,151 @@ function endGame(victory){
 /* =====================================================================
    ROGUELIKE RUN
    ===================================================================== */
+/* STORY PROGRESSION LOGIC START */
+const STORY_FIRST_CAPTURE_TARGET = 3;
+
+function createDefaultStoryProgress(){
+  return {
+    chapter: 0,
+    questId: "meet_professor",
+    questProgress: 0,
+    flags: {
+      prologueSeen: false,
+      starterChosen: false,
+      villageRestored: false,
+      whitePageSeen: false,
+      routeUnlocked: false,
+      rivalBattleCompleted: false
+    }
+  };
+}
+
+function createLegacyStoryProgress(){
+  return {
+    chapter: 2,
+    questId: "enter_memory_forest",
+    questProgress: STORY_FIRST_CAPTURE_TARGET,
+    flags: {
+      prologueSeen: true,
+      starterChosen: true,
+      villageRestored: true,
+      whitePageSeen: true,
+      routeUnlocked: true,
+      rivalBattleCompleted: true
+    }
+  };
+}
+
+function sanitizeStoryProgress(rawStory, useLegacyProgress){
+  if(!rawStory || typeof rawStory !== "object"){
+    return useLegacyProgress ? createLegacyStoryProgress() : createDefaultStoryProgress();
+  }
+  const rawFlags = rawStory.flags && typeof rawStory.flags === "object" ? rawStory.flags : {};
+  const questProgress = Math.max(0, Math.min(
+    STORY_FIRST_CAPTURE_TARGET, Math.floor(Number(rawStory.questProgress) || 0)
+  ));
+  const flags = {
+    prologueSeen: Boolean(rawFlags.prologueSeen),
+    starterChosen: Boolean(rawFlags.starterChosen),
+    villageRestored: Boolean(rawFlags.villageRestored) || questProgress >= STORY_FIRST_CAPTURE_TARGET,
+    whitePageSeen: Boolean(rawFlags.whitePageSeen),
+    routeUnlocked: Boolean(rawFlags.routeUnlocked) || Boolean(rawFlags.whitePageSeen),
+    rivalBattleCompleted: Boolean(rawFlags.rivalBattleCompleted)
+  };
+  if(flags.rivalBattleCompleted){
+    flags.prologueSeen = true;
+    flags.starterChosen = true;
+    flags.villageRestored = true;
+    flags.whitePageSeen = true;
+    flags.routeUnlocked = true;
+  }
+  let questId = "meet_professor";
+  let chapter = 0;
+  if(flags.prologueSeen) questId = "choose_starter";
+  if(flags.starterChosen){ questId = "capture_first_three"; chapter = 1; }
+  if(flags.villageRestored) questId = "confront_white_page";
+  if(flags.routeUnlocked) questId = "meet_rival";
+  if(flags.rivalBattleCompleted){ questId = "enter_memory_forest"; chapter = 2; }
+  return { chapter, questId, questProgress, flags };
+}
+
+function markStoryPrologueSeen(story){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(safeStory.flags.prologueSeen) return safeStory;
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    flags: Object.assign({}, safeStory.flags, { prologueSeen: true })
+  }), false);
+}
+
+function startFirstCaptureQuest(story){
+  const safeStory = sanitizeStoryProgress(story, false);
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    flags: Object.assign({}, safeStory.flags, {
+      prologueSeen: true,
+      starterChosen: true
+    })
+  }), false);
+}
+
+function recordFirstCaptureForStory(story, isNewCard){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(!isNewCard || safeStory.questId !== "capture_first_three") return safeStory;
+  const questProgress = Math.min(STORY_FIRST_CAPTURE_TARGET, safeStory.questProgress + 1);
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    questProgress,
+    flags: Object.assign({}, safeStory.flags, {
+      villageRestored: questProgress >= STORY_FIRST_CAPTURE_TARGET
+    })
+  }), false);
+}
+
+function completeWhitePageStoryEvent(story){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(!safeStory.flags.villageRestored) return safeStory;
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    flags: Object.assign({}, safeStory.flags, {
+      whitePageSeen: true,
+      routeUnlocked: true
+    })
+  }), false);
+}
+
+function completeStoryRivalDuel(story){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(!safeStory.flags.routeUnlocked) return safeStory;
+  return sanitizeStoryProgress(Object.assign({}, safeStory, {
+    flags: Object.assign({}, safeStory.flags, { rivalBattleCompleted: true })
+  }), false);
+}
+
+function isStoryRouteUnlocked(story){
+  return sanitizeStoryProgress(story, false).flags.routeUnlocked;
+}
+
+function shouldShowStoryRival(story){
+  const flags = sanitizeStoryProgress(story, false).flags;
+  return flags.routeUnlocked && !flags.rivalBattleCompleted;
+}
+
+function getStoryObjective(story){
+  const safeStory = sanitizeStoryProgress(story, false);
+  if(safeStory.questId === "meet_professor") return "영어박사님 집에서 사라진 편지를 확인하세요.";
+  if(safeStory.questId === "choose_starter") return "영어박사님의 시험을 통과하고 스타팅 덱을 선택하세요.";
+  if(safeStory.questId === "capture_first_three") return "새싹마을 풀숲에서 신규 단어를 포획하세요. " + safeStory.questProgress + " / " + STORY_FIRST_CAPTURE_TARGET;
+  if(safeStory.questId === "confront_white_page") return "복구된 표지판 앞에서 백지단을 마주하세요.";
+  if(safeStory.questId === "meet_rival") return "1번 길을 막은 라이벌과 첫 비랭크 대결을 치르세요.";
+  return "1번 길 너머 기억의 숲으로 들어가세요.";
+}
+
+function getVillageSignText(story){
+  const progress = sanitizeStoryProgress(story, false).questProgress;
+  if(progress <= 0) return "Welcome to ____ Town.";
+  if(progress === 1) return "Welcome to S____ Town.";
+  if(progress === 2) return "Welcome to Sprout ____.";
+  return "Welcome to Sprout Town.";
+}
+/* STORY PROGRESSION LOGIC END */
+
 /* WORLD MAP LOGIC START */
 const WORLD_TILE_SIZE = 32;
 const WORLD_COLUMNS = 38;
@@ -3618,10 +3798,12 @@ const WORLD_BUILDINGS = Object.freeze([
   })
 ]);
 const WORLD_SIGNS = Object.freeze([
-  Object.freeze({ x: 5, y: 12, text: "← 단어 연구소　기억의 숲 →" }),
+  Object.freeze({ id: "villageName", x: 5, y: 12, text: "Welcome to ____ Town." }),
   Object.freeze({ x: 20, y: 15, text: "기억의 숲 — 긴 풀숲에서 단어가 나타납니다." }),
   Object.freeze({ x: 29, y: 16, text: "명예의 언덕 — 남쪽에 명예의 전당이 있습니다." })
 ]);
+const WORLD_ROUTE_GATE_COORDINATES = new Set(["17,13", "17,14"]);
+const WORLD_RIVAL_COORDINATES = new Set(["21,13", "21,14"]);
 const WORLD_TREE_COORDINATES = new Set([
   "2,3", "2,4", "2,5", "2,8", "2,9", "2,10",
   "10,2", "11,2", "12,2", "13,2", "14,2", "15,2",
@@ -3652,6 +3834,7 @@ function getWorldTerrain(x, y){
   if(isBoundary) return "water";
   if((x === 17 || x === 18) && (y === 13 || y === 14)) return "bridge";
   if(x === 17 || x === 18) return "water";
+  if(x >= 9 && x <= 13 && y >= 16 && y <= 18) return "tallGrass";
   if(isWorldPath(x, y)) return "path";
   if(x >= 11 && x <= 15 && y >= 20 && y <= 23) return "water";
   if(y === 17 && x >= 27 && x <= 35 && x !== 31 && x !== 32) return "fence";
@@ -3668,7 +3851,7 @@ function getWorldTerrain(x, y){
 
 function getWorldAreaName(x, y){
   if(x >= 27 && y >= 16) return "명예의 언덕";
-  if(x >= 19 && y <= 15) return "기억의 숲";
+  if(x >= 23 && y <= 12) return "기억의 숲";
   if(x <= 16) return "새싹마을";
   return "1번 길";
 }
@@ -3678,8 +3861,13 @@ function isInsideWorldBuilding(x, y, building){
          y >= building.y && y < building.y + building.height;
 }
 
-function isWorldPositionBlocked(x, y){
+function isWorldPositionBlocked(x, y, storyProgress){
   if(x < 0 || y < 0 || x >= WORLD_COLUMNS || y >= WORLD_ROWS) return true;
+  const coordinateKey = x + "," + y;
+  if(storyProgress && WORLD_ROUTE_GATE_COORDINATES.has(coordinateKey) &&
+     !isStoryRouteUnlocked(storyProgress)) return true;
+  if(storyProgress && WORLD_RIVAL_COORDINATES.has(coordinateKey) &&
+     shouldShowStoryRival(storyProgress)) return true;
   if(["water", "tree", "fence"].includes(getWorldTerrain(x, y))) return true;
   if(WORLD_BUILDINGS.some(building => isInsideWorldBuilding(x, y, building))) return true;
   return WORLD_SIGNS.some(sign => sign.x === x && sign.y === y);
@@ -3833,6 +4021,37 @@ function drawWorldSign(context, sign, camera){
   context.fillRect(screenX + 19, screenY + 11, 4, 4);
 }
 
+function drawWorldStoryGate(context, camera){
+  [13, 14].forEach(y => {
+    const screenX = 17 * WORLD_TILE_SIZE - camera.x;
+    const screenY = y * WORLD_TILE_SIZE - camera.y;
+    context.fillStyle = "#f3f0df";
+    context.fillRect(screenX + 2, screenY + 5, WORLD_TILE_SIZE - 4, 22);
+    context.fillStyle = "#a9b5b8";
+    context.fillRect(screenX + 5, screenY + 9, WORLD_TILE_SIZE - 10, 2);
+    context.fillRect(screenX + 5, screenY + 16, WORLD_TILE_SIZE - 10, 2);
+    context.fillRect(screenX + 5, screenY + 23, WORLD_TILE_SIZE - 10, 2);
+  });
+}
+
+function drawWorldStoryRival(context, camera){
+  const screenX = 21 * WORLD_TILE_SIZE - camera.x;
+  const screenY = 13 * WORLD_TILE_SIZE - camera.y;
+  context.fillStyle = "rgba(33,36,45,.35)";
+  context.fillRect(screenX + 5, screenY + 52, 22, 4);
+  context.fillStyle = "#71394d";
+  context.fillRect(screenX + 8, screenY + 25, 17, 27);
+  context.fillStyle = "#d8a66c";
+  context.fillRect(screenX + 10, screenY + 12, 13, 14);
+  context.fillStyle = "#ece5ce";
+  context.fillRect(screenX + 7, screenY + 5, 19, 9);
+  context.fillStyle = "#c74343";
+  context.fillRect(screenX + 7, screenY + 4, 19, 4);
+  context.fillStyle = "#f4d45e";
+  context.fillRect(screenX + 28, screenY + 2, 3, 10);
+  context.fillRect(screenX + 25, screenY + 5, 9, 3);
+}
+
 function drawWorldPlayer(context, world, camera){
   const screenX = world.x * WORLD_TILE_SIZE - camera.x;
   const screenY = world.y * WORLD_TILE_SIZE - camera.y;
@@ -3886,6 +4105,9 @@ function drawWorldMap(){
   }
   WORLD_BUILDINGS.forEach(building => drawWorldBuilding(context, building, camera));
   WORLD_SIGNS.forEach(sign => drawWorldSign(context, sign, camera));
+  const story = S.wordGameProgress && S.wordGameProgress.story;
+  if(story && !isStoryRouteUnlocked(story)) drawWorldStoryGate(context, camera);
+  if(story && shouldShowStoryRival(story)) drawWorldStoryRival(context, camera);
   drawWorldPlayer(context, S.world, camera);
 }
 
@@ -3899,15 +4121,15 @@ function updateWorldMapHud(){
   $("map-lv").textContent = rating;
   const objective = $("world-objective-text");
   if(objective){
-    objective.textContent = S.wordGameProgress && !S.wordGameProgress.starterDeckId
-      ? "영어박사님 집에서 스타팅 덱 " + STARTER_DECK_SIZE + "장을 선택하세요."
-      : "보유 카드 " + S.deck.length + "장. 풀숲에서 단어를 포획하고 시설을 찾아보세요.";
+    objective.textContent = getStoryObjective(S.wordGameProgress && S.wordGameProgress.story);
   }
   const canvas = $("world-canvas");
   if(canvas){
     canvas.dataset.worldX = S.world.x;
     canvas.dataset.worldY = S.world.y;
     canvas.dataset.direction = S.world.direction;
+    canvas.dataset.storyQuest = S.wordGameProgress && S.wordGameProgress.story
+      ? S.wordGameProgress.story.questId : "";
   }
 }
 
@@ -3920,7 +4142,12 @@ function showWorldMessage(message, durationMs){
   worldMessageTimer = setTimeout(() => box.classList.remove("show"), durationMs || 2400);
 }
 
-function getWorldObstacleMessage(x, y){
+function getWorldObstacleMessage(x, y, storyProgress){
+  const coordinateKey = x + "," + y;
+  if(WORLD_ROUTE_GATE_COORDINATES.has(coordinateKey) && !isStoryRouteUnlocked(storyProgress))
+    return "사라진 단어 3개를 복구해야 1번 길의 백지 장벽이 사라집니다.";
+  if(WORLD_RIVAL_COORDINATES.has(coordinateKey) && shouldShowStoryRival(storyProgress))
+    return "라이벌이 길을 막고 있습니다. Enter 또는 A 버튼으로 대화하세요.";
   const building = WORLD_BUILDINGS.find(candidate => isInsideWorldBuilding(x, y, candidate));
   if(building){
     const isDoor = building.doorX === x && building.doorY === y;
@@ -3944,11 +4171,12 @@ function moveWorld(direction){
   const nextX = S.world.x + vector.dx;
   const nextY = S.world.y + vector.dy;
   const facingWorld = Object.assign({}, S.world, { direction });
-  if(isWorldPositionBlocked(nextX, nextY)){
+  const story = S.wordGameProgress && S.wordGameProgress.story;
+  if(isWorldPositionBlocked(nextX, nextY, story)){
     S.world = facingWorld;
     updateWorldMapHud();
     drawWorldMap();
-    showWorldMessage(getWorldObstacleMessage(nextX, nextY), 1700);
+    showWorldMessage(getWorldObstacleMessage(nextX, nextY, story), 2200);
     return;
   }
 
@@ -3973,6 +4201,11 @@ function interactWorld(){
   const vector = WORLD_DIRECTIONS[S.world.direction];
   const targetX = S.world.x + vector.dx;
   const targetY = S.world.y + vector.dy;
+  const story = S.wordGameProgress && S.wordGameProgress.story;
+  if(WORLD_RIVAL_COORDINATES.has(targetX + "," + targetY) && shouldShowStoryRival(story)){
+    openStoryRivalEncounter();
+    return;
+  }
   const building = WORLD_BUILDINGS.find(candidate =>
     candidate.doorX === targetX && candidate.doorY === targetY);
   if(building){
@@ -3983,7 +4216,15 @@ function interactWorld(){
     return;
   }
   const sign = WORLD_SIGNS.find(candidate => candidate.x === targetX && candidate.y === targetY);
-  if(sign){ showWorldMessage(sign.text, 3000); return; }
+  if(sign){
+    if(sign.id === "villageName" && sanitizeStoryProgress(story, false).questId === "confront_white_page"){
+      openWhitePageStoryEvent();
+      return;
+    }
+    const signText = sign.id === "villageName" ? getVillageSignText(story) : sign.text;
+    showWorldMessage(signText, 3000);
+    return;
+  }
   const terrain = getWorldTerrain(targetX, targetY);
   const message = terrain === "tallGrass" ? "긴 풀 사이로 낯선 단어의 기척이 느껴집니다."
                 : terrain === "water" ? "맑은 물이 천천히 흐르고 있습니다."
@@ -4003,7 +4244,7 @@ const WORD_ANSWER_TIME_LIMIT_SECONDS = 7;
 const STARTER_DECK_SIZE = 25;
 const STARTER_DECK_EXAM_RATIO = 0.2;
 const STARTER_DECK_PASS_RATIO = 0.8;
-const WORD_GAME_PROGRESS_VERSION = 5;
+const WORD_GAME_PROGRESS_VERSION = 6;
 const STARTER_DECK_DEFINITIONS = Object.freeze([
   Object.freeze({
     id: "daily", name: "생활 덱", emblem: "🍎", startIndex: 0,
@@ -4177,7 +4418,8 @@ function createDefaultWordGameProgress(){
     rating: 1000,
     wins: 0,
     losses: 0,
-    draws: 0
+    draws: 0,
+    story: createDefaultStoryProgress()
   };
 }
 
@@ -4267,6 +4509,8 @@ function sanitizeWordGameProgress(rawProgress){
     ? rawProgress.starterDeckCandidateId.trim() : "";
   const starterDeckCandidateId = starterDeckId === "legacy" ? null
     : starterDeckId || (isKnownStarterDeckId(requestedCandidateId) ? requestedCandidateId : null);
+  const hasStartedLegacyGame = storedVersion < WORD_GAME_PROGRESS_VERSION && decks[GAME_LANGUAGE].length > 0;
+  const story = sanitizeStoryProgress(rawProgress.story, hasStartedLegacyGame);
   return {
     version: WORD_GAME_PROGRESS_VERSION,
     starterDeckId,
@@ -4276,7 +4520,8 @@ function sanitizeWordGameProgress(rawProgress){
     rating,
     wins: Math.max(0, Math.floor(Number(rawProgress.wins) || 0)),
     losses: Math.max(0, Math.floor(Number(rawProgress.losses) || 0)),
-    draws: Math.max(0, Math.floor(Number(rawProgress.draws) || 0))
+    draws: Math.max(0, Math.floor(Number(rawProgress.draws) || 0)),
+    story
   };
 }
 
@@ -4344,8 +4589,14 @@ function buildCollectionPromptMarkup(card, kicker, inputId){
     '<div class="collection-example"><b>EXAMPLE</b>' + escapeCollectionText(card.example) + '</div>' +
     '<input class="collection-input" id="' + inputId + '" autocomplete="off" autocapitalize="none" spellcheck="false" ' +
     'placeholder="정답을 입력하세요">' + buildCollectionAccentMarkup() +
-    '<div class="collection-timer" id="word-answer-timer"><span>TIME LIMIT</span><span><strong id="word-answer-seconds">' +
-    getWordAnswerTimeLimitSeconds() + '</strong>초</span></div></div>';
+    buildWordAnswerTimerMarkup() + '</div>';
+}
+
+function buildWordAnswerTimerMarkup(){
+  return '<div class="collection-timer" id="word-answer-timer"><span>TIME LIMIT</span>' +
+    '<span class="collection-timer-track" aria-hidden="true"><i class="collection-timer-fill" ' +
+    'id="word-answer-timer-fill"></i></span><span><strong id="word-answer-seconds">' +
+    getWordAnswerTimeLimitSeconds() + '</strong>초</span></div>';
 }
 
 function clearWordAnswerTimer(){
@@ -4354,12 +4605,14 @@ function clearWordAnswerTimer(){
   wordAnswerTimerId = null;
 }
 
-function updateWordAnswerTimerDisplay(remainingSeconds){
+function updateWordAnswerTimerDisplay(remainingSeconds, remainingRatio){
   const timer = $("word-answer-timer");
   const seconds = $("word-answer-seconds");
+  const fill = $("word-answer-timer-fill");
   if(!timer || !seconds) return;
   const warningThreshold = Math.ceil(getWordAnswerTimeLimitSeconds() / 2);
   seconds.textContent = Math.max(0, remainingSeconds);
+  if(fill) fill.style.width = remainingRatio + "%";
   timer.classList.toggle("warning", remainingSeconds <= warningThreshold && remainingSeconds > 2);
   timer.classList.toggle("danger", remainingSeconds <= 2);
 }
@@ -4367,11 +4620,14 @@ function updateWordAnswerTimerDisplay(remainingSeconds){
 function startWordAnswerTimer(onTimeout){
   clearWordAnswerTimer();
   const token = wordAnswerTimerToken;
-  const deadline = Date.now() + getWordAnswerTimeLimitSeconds() * 1000;
+  const totalMilliseconds = getWordAnswerTimeLimitSeconds() * 1000;
+  const deadline = Date.now() + totalMilliseconds;
   const tick = () => {
     if(token !== wordAnswerTimerToken) return;
-    const remainingSeconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-    updateWordAnswerTimerDisplay(remainingSeconds);
+    const remainingMilliseconds = Math.max(0, deadline - Date.now());
+    const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
+    const remainingRatio = Math.max(0, Math.min(100, remainingMilliseconds / totalMilliseconds * 100));
+    updateWordAnswerTimerDisplay(remainingSeconds, remainingRatio);
     if(Date.now() < deadline) return;
     clearWordAnswerTimer();
     if(typeof onTimeout === "function") onTimeout();
@@ -4412,6 +4668,50 @@ function setProfessorPanelMode(enabled){
 function buildProfessorStageMarkup(message){
   return '<div class="professor-stage"><div class="professor-avatar" role="img" ' +
     'aria-label="영어박사님">🧑‍🏫</div><div class="professor-dialogue">' + message + '</div></div>';
+}
+
+function renderStoryPrologueScene(sceneIndex){
+  const safeIndex = Math.max(0, Math.min(2, Math.floor(Number(sceneIndex) || 0)));
+  const scenes = [
+    {
+      title: "사라진 편지",
+      subtitle: "영어박사님의 책상 위에 발신인이 지워진 편지가 놓여 있습니다.",
+      markup: '<div class="story-scene"><span class="story-scene-label">PROLOGUE · LETTER</span>' +
+        '<div class="story-letter">“단어가 기억에서 사라지고 있습니다.<br>' +
+        '표지판도, 책도, 사람들의 이름도…<br><br><b>우리를 기억해 주세요.</b>”<br><br>— ____</div></div>'
+    },
+    {
+      title: "빈 자리가 된 마을",
+      subtitle: "창밖의 마을 표지판에서도 이름이 사라졌습니다.",
+      markup: '<div class="story-scene"><span class="story-scene-label">SPROUT TOWN · LOST WORDS</span>' +
+        '<div class="story-sign-preview">Welcome to ____ Town.</div>' +
+        '<p class="story-scene-copy">풀숲에 흩어진 단어를 다시 기억하면, 빈 자리가 하나씩 돌아올 것 같습니다.</p></div>'
+    },
+    {
+      title: "영어박사님의 부탁",
+      subtitle: "단어를 지키는 첫 덱을 선택할 시간입니다.",
+      markup: '<div class="professor-room">' + buildProfessorStageMarkup(
+        '“백지단이 사람들의 기억에서 단어를 지우고 있단다. 우선 너의 <b>첫 25장 덱</b>을 고르고, 마을에서 사라진 단어 세 개를 되찾아 주렴.”') + '</div>'
+    }
+  ];
+  const scene = scenes[safeIndex];
+  $("pn-emoji").textContent = safeIndex === 2 ? "🧑‍🏫" : "✉️";
+  $("pn-title").textContent = scene.title;
+  $("pn-sub").textContent = scene.subtitle;
+  $("pn-opts").innerHTML = scene.markup;
+  $("pn-foot").innerHTML = safeIndex < 2
+    ? '<button class="ov-btn" type="button" onclick="renderStoryPrologueScene(' + (safeIndex + 1) + ')">계속</button>'
+    : '<button class="ov-btn" type="button" onclick="completeStoryPrologue()">스타팅 덱 보기</button>';
+}
+
+function completeStoryPrologue(){
+  if(!S || !S.wordGameProgress) return;
+  S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
+    story: markStoryPrologueSeen(S.wordGameProgress.story)
+  });
+  saveWordGameProgress(S.wordGameProgress);
+  updateWorldMapHud();
+  renderStarterDeckChoices();
 }
 
 function buildStarterDeckChoiceMarkup(definition, selectedId, locked){
@@ -4476,8 +4776,12 @@ function openEnglishProfessorHouse(){
   S.pendingStarterDeckId = S.wordGameProgress.starterDeckCandidateId || null;
   S.starterDeckExam = null;
   S.passedStarterDeckId = null;
-  renderStarterDeckChoices();
   $("panel").classList.add("show");
+  if(!sanitizeStoryProgress(S.wordGameProgress.story, false).flags.prologueSeen){
+    renderStoryPrologueScene(0);
+    return;
+  }
+  renderStarterDeckChoices();
 }
 
 function selectStarterDeck(starterDeckId){
@@ -4582,11 +4886,14 @@ function confirmStarterDeckChoice(starterDeckId){
   if(!definition) return;
   const nextProgress = applyStarterDeckChoice(S.wordGameProgress, L().bank, LANG, starterDeckId);
   if(nextProgress.starterDeckId !== starterDeckId) return;
-  S.wordGameProgress = nextProgress;
-  S.deck = nextProgress.decks[LANG].slice();
-  S.collectionKeys = nextProgress.collections[LANG].slice();
+  const startedProgress = Object.assign({}, nextProgress, {
+    story: startFirstCaptureQuest(nextProgress.story)
+  });
+  S.wordGameProgress = startedProgress;
+  S.deck = startedProgress.decks[LANG].slice();
+  S.collectionKeys = startedProgress.collections[LANG].slice();
   S.passedStarterDeckId = null;
-  saveWordGameProgress(nextProgress);
+  saveWordGameProgress(startedProgress);
   updateWorldMapHud();
   updateCollectionProgress();
   $("pn-title").textContent = "스타팅 덱 획득!";
@@ -4594,7 +4901,8 @@ function confirmStarterDeckChoice(starterDeckId){
   $("pn-opts").innerHTML = '<div class="professor-room">' +
     buildProfessorStageMarkup("좋은 선택이구나! <b>" + escapeCollectionText(definition.name) + " " +
       STARTER_DECK_SIZE + "장</b>을 네 덱과 도감에 등록했다.") +
-    '<div class="starter-exam-result"><b>' + STARTER_DECK_SIZE + ' CARDS</b>덱과 도감 등록 완료</div></div>';
+    '<div class="starter-exam-result"><b>' + STARTER_DECK_SIZE + ' CARDS</b>덱과 도감 등록 완료<br>' +
+    '첫 임무: 마을 풀숲에서 신규 단어 3개 포획</div></div>';
   $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">모험 시작</button>';
 }
 
@@ -4641,7 +4949,12 @@ function maybeStartWorldEncounter(terrain){
     if(terrain === "tallGrass") showWorldMessage("먼저 영어박사님 집에서 스타팅 덱을 선택하세요.", 2200);
     return false;
   }
-  if(!shouldStartWordEncounter(terrain, S.world.steps, S.lastEncounterStep, Math.random())) return false;
+  const story = sanitizeStoryProgress(S.wordGameProgress.story, false);
+  const isTutorialCapture = story.questId === "capture_first_three" &&
+    getWorldAreaName(S.world.x, S.world.y) === "새싹마을" && terrain === "tallGrass";
+  if(!isTutorialCapture && !shouldStartWordEncounter(
+    terrain, S.world.steps, S.lastEncounterStep, Math.random()
+  )) return false;
   const card = pickWorldEncounterCard();
   if(!card) return false;
   S.lastEncounterStep = S.world.steps;
@@ -4700,6 +5013,9 @@ function captureEncounterWord(reason){
   S.deck = addCardToDeck(S.deck, card);
   S.collectionKeys = addCardKeyToCollection(S.collectionKeys, card);
   const isNewCard = S.deck.length > previousSize;
+  S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
+    story: recordFirstCaptureForStory(S.wordGameProgress.story, isNewCard)
+  });
   persistCurrentWordGame();
   setMastery(card.w, Math.max(1, masteryOf(card.w)));
   updateWorldMapHud();
@@ -4707,10 +5023,17 @@ function captureEncounterWord(reason){
   $("pn-emoji").innerHTML = icon("flag");
   $("pn-title").textContent = isNewCard ? "단어 포획 성공!" : "이미 보유한 단어";
   $("pn-sub").textContent = reason + " · 덱 " + S.deck.length + "장";
+  const story = sanitizeStoryProgress(S.wordGameProgress.story, false);
+  const storyMarkup = story.flags.starterChosen && !story.flags.whitePageSeen
+    ? '<div class="collection-verdict win">마을 표지판: <b>' +
+      escapeCollectionText(getVillageSignText(story)) + '</b><br>신규 단어 포획 ' +
+      story.questProgress + ' / ' + STORY_FIRST_CAPTURE_TARGET + '</div>'
+    : "";
   $("pn-opts").innerHTML = '<div class="collection-verdict win"><b>' +
     escapeCollectionText(card.w) + '</b> — ' + escapeCollectionText(card.ko) +
-    '<br>' + escapeCollectionText(card.example) + '</div>';
-  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeCollectionPanel()">덱에 넣고 계속</button>';
+    '<br>' + escapeCollectionText(card.example) + '</div>' + storyMarkup;
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeCollectionPanel()">' +
+    (story.questId === "confront_white_page" ? '복구된 표지판 확인' : '덱에 넣고 계속') + '</button>';
 }
 
 function startCaptureExam(){
@@ -4781,9 +5104,55 @@ function finishCaptureExam(){
 
 function closeCollectionPanel(){
   clearWordAnswerTimer();
+  const shouldOpenStoryEvent = S && S.wordGameProgress &&
+    sanitizeStoryProgress(S.wordGameProgress.story, false).questId === "confront_white_page";
   $("panel").classList.remove("show");
   S.encounterWord = null;
   S.captureExam = null;
+  renderMap();
+  if(shouldOpenStoryEvent){
+    openWhitePageStoryEvent();
+    return;
+  }
+  const canvas = $("world-canvas");
+  if(canvas) canvas.focus({ preventScroll: true });
+}
+
+function openWhitePageStoryEvent(){
+  if(!S || !S.wordGameProgress) return;
+  const story = sanitizeStoryProgress(S.wordGameProgress.story, false);
+  if(story.questId !== "confront_white_page") return;
+  clearWordAnswerTimer();
+  setProfessorPanelMode(false);
+  setDuelPanelMode(false);
+  $("pn-emoji").textContent = "□";
+  $("pn-title").textContent = "백지단이 나타났다";
+  $("pn-sub").textContent = "새싹마을의 이름이 돌아오자 1번 길의 흰 장벽이 요동칩니다.";
+  $("pn-opts").innerHTML = '<div class="story-scene"><span class="story-scene-label">THE WHITE PAGE</span>' +
+    '<p class="story-scene-copy"><b>백지단:</b> “단어는 사라지지 않아. 사람들이 잊기를 선택할 뿐이지.”<br><br>' +
+    '표지판에서 복구된 <b>Sprout Town</b>이 빛나고, 흰 장벽에 금이 갑니다.</p></div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="completeWhitePageStoryScene()">단어를 지켜낸다</button>';
+  $("panel").classList.add("show");
+}
+
+function completeWhitePageStoryScene(){
+  if(!S || !S.wordGameProgress) return;
+  S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
+    story: completeWhitePageStoryEvent(S.wordGameProgress.story)
+  });
+  persistCurrentWordGame();
+  updateWorldMapHud();
+  drawWorldMap();
+  $("pn-emoji").textContent = "🌉";
+  $("pn-title").textContent = "1번 길이 열렸다";
+  $("pn-sub").textContent = "백지 장벽이 사라졌습니다. 다리 너머의 라이벌을 만나세요.";
+  $("pn-opts").innerHTML = '<div class="collection-verdict win"><b>QUEST CLEAR</b><br>' +
+    escapeCollectionText(getVillageSignText(S.wordGameProgress.story)) + '</div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeStoryScenePanel()">1번 길로 출발</button>';
+}
+
+function closeStoryScenePanel(){
+  $("panel").classList.remove("show");
   renderMap();
   const canvas = $("world-canvas");
   if(canvas) canvas.focus({ preventScroll: true });
@@ -5089,8 +5458,7 @@ function buildDuelQuestionMarkup(card, inputId){
     escapeCollectionText(card.example) + '</div>' +
     '<input class="collection-input" id="' + inputId + '" autocomplete="off" autocapitalize="none" ' +
     'spellcheck="false" placeholder="정답을 입력하세요">' + buildCollectionAccentMarkup() +
-    '<div class="collection-timer" id="word-answer-timer"><span>TIME LIMIT</span><span><strong id="word-answer-seconds">' +
-    getWordAnswerTimeLimitSeconds() + '</strong>초</span></div>' +
+    buildWordAnswerTimerMarkup() +
     '<button class="duel-submit" type="button" onclick="submitHallDuelAnswer()">정답 제출</button></div>';
 }
 
@@ -5152,6 +5520,58 @@ function buildDuelScoreMarkup(duel){
     '</span></div><div class="duel-versus">VS</div><div class="duel-fighter"><b>' +
     escapeCollectionText(duel.opponent.displayName) + ' · ' + duel.opponentCorrect + '</b><span>' +
     duel.opponent.rank + ' ' + duel.opponent.rating + '</span></div></div>';
+}
+
+function openStoryRivalEncounter(){
+  if(!S || !shouldShowStoryRival(S.wordGameProgress && S.wordGameProgress.story)) return;
+  clearWordAnswerTimer();
+  S.duel = null;
+  setProfessorPanelMode(false);
+  setDuelPanelMode(true);
+  $("pn-emoji").textContent = "⚔️";
+  $("pn-title").textContent = "1번 길의 라이벌";
+  $("pn-sub").textContent = "첫 대결은 랭크 포인트가 변하지 않는 5라운드 비랭크전입니다.";
+  $("pn-opts").innerHTML = '<div class="story-scene"><span class="story-scene-label">FIRST RIVAL · UNRANKED</span>' +
+    '<p class="story-scene-copy"><b>라이벌 루멘:</b> “마을 단어 세 개를 되찾았다고? 그 덱이 진짜 기억으로 만들어졌는지 확인해 보지.”<br><br>' +
+    '매 라운드 새 5장을 뽑고 1장을 제시합니다. 상대도 매 라운드 다른 단어를 제시합니다.</p></div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="startStoryRivalDuel()">비랭크 대결 시작</button>' +
+    '<button class="ov-btn ghost" type="button" onclick="closeFacilityPanel()">준비 후 도전</button>';
+  $("panel").classList.add("show");
+}
+
+function startStoryRivalDuel(){
+  if(!S || !shouldShowStoryRival(S.wordGameProgress && S.wordGameProgress.story)) return;
+  if(!canStartHallDuel(S.deck.length)){ openStoryRivalEncounter(); return; }
+  const player = createHallUser({
+    id: "player-local", displayName: "YOU", rating: S.wordGameProgress.rating, deck: S.deck
+  });
+  const rivalDeckDefinition = STARTER_DECK_DEFINITIONS.find(
+    definition => definition.id !== S.wordGameProgress.starterDeckId
+  ) || STARTER_DECK_DEFINITIONS[0];
+  const opponent = createHallUser({
+    id: "story-rival-lumen",
+    displayName: "RIVAL LUMEN",
+    rating: player.rating,
+    deck: createStarterDeck(L().bank, LANG, rivalDeckDefinition.id),
+    isMock: true,
+    answerPattern: HALL_MOCK_ANSWER_PATTERN
+  });
+  const playerDraw = drawDuelHandAndConsumeDeck(player.deck, HALL_DUEL_HAND_SIZE);
+  const opponentDraw = drawDuelHandAndConsumeDeck(opponent.deck, HALL_DUEL_HAND_SIZE);
+  S.duel = {
+    mode: "story-rival",
+    player,
+    opponent,
+    hand: playerDraw.hand,
+    opponentChallenge: opponentDraw.hand[Math.floor(Math.random() * opponentDraw.hand.length)] || null,
+    playerDeckRemaining: playerDraw.nextDeck,
+    opponentDeckRemaining: opponentDraw.nextDeck,
+    playedIndexes: [], round: 0, playerCorrect: 0, opponentCorrect: 0,
+    phase: "choose", lastPlayerCard: null, opponentWasCorrect: false, challenge: null,
+    opponentSubmittedAnswer: "", playerSubmittedAnswer: "", playerWasCorrect: false,
+    finished: false
+  };
+  renderDuelCardChoice();
 }
 
 function openHallOfFame(){
@@ -5351,6 +5771,10 @@ function finishHallDuel(){
   const duel = S.duel;
   if(!duel || duel.finished) return;
   const outcome = getDuelOutcome(duel.playerCorrect, duel.opponentCorrect);
+  if(duel.mode === "story-rival"){
+    finishStoryRivalDuel(outcome);
+    return;
+  }
   const previousRating = S.wordGameProgress.rating;
   const nextRating = calculateRatingAfterDuel(previousRating, outcome);
   const opponentOutcome = getOpponentDuelOutcome(outcome);
@@ -5373,6 +5797,40 @@ function finishHallDuel(){
   persistCurrentWordGame();
   updateWorldMapHud();
   renderHallDuelResult();
+}
+
+function finishStoryRivalDuel(outcome){
+  const duel = S.duel;
+  if(!duel || duel.finished) return;
+  const unchangedRating = S.wordGameProgress.rating;
+  S.wordGameProgress = Object.assign({}, S.wordGameProgress, {
+    story: completeStoryRivalDuel(S.wordGameProgress.story)
+  });
+  S.duel = Object.assign({}, duel, {
+    outcome,
+    previousRating: unchangedRating,
+    nextRating: unchangedRating,
+    finished: true
+  });
+  persistCurrentWordGame();
+  updateWorldMapHud();
+  drawWorldMap();
+  renderStoryRivalDuelResult();
+}
+
+function renderStoryRivalDuelResult(){
+  const duel = S.duel;
+  const outcomeLabel = duel.outcome === "win" ? "승리" : duel.outcome === "loss" ? "패배" : "무승부";
+  $("pn-emoji").textContent = "🌲";
+  $("pn-title").textContent = "첫 대결 완료 · " + outcomeLabel;
+  $("pn-sub").textContent = duel.player.displayName + " " + duel.playerCorrect + " : " +
+    duel.opponentCorrect + " " + duel.opponent.displayName + " · 레이팅 변동 없음";
+  const storyMarkup = '<div class="duel-inline-result correct"><b>라이벌 루멘:</b> ' +
+    '“결과보다 중요한 건 네가 단어를 기억해 냈다는 거야. 기억의 숲에서 다시 보자.”<br>' +
+    '비랭크전이므로 레이팅 ' + duel.previousRating + '이 유지됩니다.</div>';
+  $("pn-opts").innerHTML = buildDuelBattlefieldMarkup(duel, "final", storyMarkup);
+  resetDuelPanelScroll();
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeFacilityPanel()">기억의 숲으로</button>';
 }
 
 function renderHallDuelResult(){

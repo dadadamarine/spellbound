@@ -6,6 +6,10 @@ import vm from "node:vm";
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 
 function loadWorldTestApi() {
+  const storyStartMarker = "/* STORY PROGRESSION LOGIC START */";
+  const storyEndMarker = "/* STORY PROGRESSION LOGIC END */";
+  const storyStartIndex = html.indexOf(storyStartMarker);
+  const storyEndIndex = html.indexOf(storyEndMarker);
   const startMarker = "/* WORLD MAP LOGIC START */";
   const endMarker = "/* WORLD MAP LOGIC END */";
   const startIndex = html.indexOf(startMarker);
@@ -13,11 +17,14 @@ function loadWorldTestApi() {
 
   assert.notEqual(startIndex, -1, "월드맵 로직 시작 표식이 있어야 한다");
   assert.notEqual(endIndex, -1, "월드맵 로직 종료 표식이 있어야 한다");
+  assert.notEqual(storyStartIndex, -1, "스토리 진행 로직 시작 표식이 있어야 한다");
+  assert.notEqual(storyEndIndex, -1, "스토리 진행 로직 종료 표식이 있어야 한다");
 
+  const storySource = html.slice(storyStartIndex, storyEndIndex + storyEndMarker.length);
   const worldSource = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${worldSource}\n;globalThis.__worldTestApi = { createWorldState, getWorldTerrain, getWorldAreaName, isWorldPositionBlocked };`,
+    `${storySource}\n${worldSource}\n;globalThis.__worldTestApi = { createDefaultStoryProgress, completeWhitePageStoryEvent, completeStoryRivalDuel, createWorldState, getWorldTerrain, getWorldAreaName, isWorldPositionBlocked };`,
     sandbox
   );
   return sandbox.__worldTestApi;
@@ -61,17 +68,46 @@ test("플레이어 시작 지점은 걸을 수 있는 새싹마을 길이다", (
 
 test("물과 건물은 막고 길과 다리는 통과시킨다", () => {
   const api = loadWorldTestApi();
+  const lockedStory = api.createDefaultStoryProgress();
+  const routeStory = api.completeWhitePageStoryEvent({
+    chapter: 1,
+    questId: "confront_white_page",
+    questProgress: 3,
+    flags: {
+      prologueSeen: true, starterChosen: true, villageRestored: true,
+      whitePageSeen: false, routeUnlocked: false, rivalBattleCompleted: false
+    }
+  });
+  const completedStory = api.completeStoryRivalDuel(routeStory);
 
   assert.equal(api.getWorldTerrain(0, 0), "water");
   assert.equal(api.isWorldPositionBlocked(0, 0), true);
   assert.equal(api.getWorldTerrain(8, 14), "path");
   assert.equal(api.isWorldPositionBlocked(8, 14), false);
   assert.equal(api.getWorldTerrain(17, 13), "bridge");
-  assert.equal(api.isWorldPositionBlocked(17, 13), false);
+  assert.equal(api.isWorldPositionBlocked(17, 13, lockedStory), true);
+  assert.equal(api.isWorldPositionBlocked(17, 13, routeStory), false);
+  assert.equal(api.isWorldPositionBlocked(21, 13, routeStory), true);
+  assert.equal(api.isWorldPositionBlocked(21, 13, completedStory), false);
   assert.equal(api.isWorldPositionBlocked(4, 4), true);
   assert.equal(api.isWorldPositionBlocked(26, 18), false);
   assert.equal(api.isWorldPositionBlocked(32, 22), true);
   assert.equal(api.isWorldPositionBlocked(32, 23), false);
+});
+
+test("새싹마을에는 1번 길 해금 전에 첫 단어를 포획할 튜토리얼 풀숲이 있다", () => {
+  const api = loadWorldTestApi();
+
+  assert.equal(api.getWorldTerrain(10, 17), "tallGrass");
+  assert.equal(api.getWorldAreaName(10, 17), "새싹마을");
+});
+
+test("프롤로그·백지단·첫 라이벌 비랭크 대결 진입점이 존재한다", () => {
+  assert.match(html, /function renderStoryPrologueScene/);
+  assert.match(html, /function openWhitePageStoryEvent/);
+  assert.match(html, /function openStoryRivalEncounter/);
+  assert.match(html, /function startStoryRivalDuel/);
+  assert.match(html, /mode: "story-rival"/);
 });
 
 test("숲과 명예의 언덕 지역명이 좌표에 따라 바뀐다", () => {

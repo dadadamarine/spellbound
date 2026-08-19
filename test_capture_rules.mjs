@@ -6,6 +6,10 @@ import vm from "node:vm";
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 
 function loadCaptureTestApi() {
+  const storyStartMarker = "/* STORY PROGRESSION LOGIC START */";
+  const storyEndMarker = "/* STORY PROGRESSION LOGIC END */";
+  const storyStartIndex = html.indexOf(storyStartMarker);
+  const storyEndIndex = html.indexOf(storyEndMarker);
   const dataStartMarker = "/* ===== data_en.js ===== */";
   const dataEndMarker = "/* ===== data_es.js ===== */";
   const dataStartIndex = html.indexOf(dataStartMarker);
@@ -17,14 +21,17 @@ function loadCaptureTestApi() {
 
   assert.notEqual(dataStartIndex, -1, "영어 단어 데이터 시작 표식이 있어야 한다");
   assert.notEqual(dataEndIndex, -1, "영어 단어 데이터 종료 표식이 있어야 한다");
+  assert.notEqual(storyStartIndex, -1, "스토리 진행 로직 시작 표식이 있어야 한다");
+  assert.notEqual(storyEndIndex, -1, "스토리 진행 로직 종료 표식이 있어야 한다");
   assert.notEqual(startIndex, -1, "단어 수집 로직 시작 표식이 있어야 한다");
   assert.notEqual(endIndex, -1, "단어 수집 로직 종료 표식이 있어야 한다");
 
+  const storySource = html.slice(storyStartIndex, storyEndIndex + storyEndMarker.length);
   const dataSource = html.slice(dataStartIndex, dataEndIndex);
   const source = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckCandidateChoice, clearStarterDeckCandidateChoice, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
+    `${storySource}\n${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckCandidateChoice, clearStarterDeckCandidateChoice, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
     sandbox
   );
   return sandbox.__captureTestApi;
@@ -108,6 +115,12 @@ test("모든 단어 입력 제한시간은 일반 단어 기준 7초다", () => 
   assert.equal(api.getWordAnswerTimeLimitSeconds(), 7);
   assert.equal(api.isTimedCardAnswerCorrect("apple", card, false, false), true);
   assert.equal(api.isTimedCardAnswerCorrect("apple", card, true, false), false);
+});
+
+test("입력 제한시간은 남은 시간에 따라 줄어드는 게이지로 표시한다", () => {
+  assert.match(html, /id="word-answer-timer-fill"/);
+  assert.match(html, /\.collection-timer-fill/);
+  assert.match(html, /fill\.style\.width\s*=\s*remainingRatio/);
 });
 
 test("새 사용자는 영어박사님 집에서 스타팅 덱을 고르기 전 빈 덱으로 시작한다", () => {
@@ -229,11 +242,13 @@ test("구버전의 5장 저장 덱도 게임 시작 시 실제 50장 덱으로 �
 
   const migrated = api.sanitizeWordGameProgress(legacyProgress);
 
-  assert.equal(migrated.version, 5);
+  assert.equal(migrated.version, 6);
   assert.equal(migrated.decks.en.length, 50);
   assert.equal(new Set(migrated.decks.en.map(card => card.key)).size, 50);
   assert.equal(migrated.collections.en.length, 50);
   assert.equal(migrated.starterDeckId, "legacy");
+  assert.equal(migrated.story.flags.routeUnlocked, true);
+  assert.equal(migrated.story.flags.rivalBattleCompleted, true);
 });
 
 test("Tier 5 장문 단어 2개는 고유 예문과 허용 철자를 가진다", () => {
