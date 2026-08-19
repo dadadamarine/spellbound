@@ -1097,6 +1097,7 @@
     color: #17251f; background: #f1dea0; border-color: #fff0b9;
   }
   .starter-deck-choice.locked:not(.selected) { opacity: .38; cursor: default; transform: none; }
+  .starter-deck-choice.selected.locked { cursor: default; transform: none; }
   .starter-deck-emblem { display: block; font-size: 27px; margin-bottom: 7px; }
   .starter-deck-choice strong { display: block; font-size: 14px; color: var(--white); }
   .starter-deck-choice.selected strong { color: #3f321f; }
@@ -2761,7 +2762,8 @@ function startGame(){
     deck: wordGameProgress.decks[LANG].slice(),
     collectionKeys: wordGameProgress.collections[LANG].slice(),
     encounterWord: null, captureExam: null, cardCleanup: null, duel: null,
-    pendingStarterDeckId: null, starterDeckExam: null,
+    pendingStarterDeckId: wordGameProgress.starterDeckCandidateId || null,
+    starterDeckExam: null, passedStarterDeckId: null,
     lastEncounterStep: -999,
     enc: null, phoenixUsed: false, relicMeta: {},
     missed: new Map(),
@@ -4001,7 +4003,7 @@ const WORD_ANSWER_TIME_LIMIT_SECONDS = 7;
 const STARTER_DECK_SIZE = 25;
 const STARTER_DECK_EXAM_RATIO = 0.2;
 const STARTER_DECK_PASS_RATIO = 0.8;
-const WORD_GAME_PROGRESS_VERSION = 4;
+const WORD_GAME_PROGRESS_VERSION = 5;
 const STARTER_DECK_DEFINITIONS = Object.freeze([
   Object.freeze({
     id: "daily", name: "생활 덱", emblem: "🍎", startIndex: 0,
@@ -4161,10 +4163,15 @@ function createStarterDeck(wordBank, language, starterDeckId){
     .map(entry => createWordCard(entry, 1, language));
 }
 
+function isKnownStarterDeckId(starterDeckId){
+  return STARTER_DECK_DEFINITIONS.some(definition => definition.id === starterDeckId);
+}
+
 function createDefaultWordGameProgress(){
   return {
     version: WORD_GAME_PROGRESS_VERSION,
     starterDeckId: null,
+    starterDeckCandidateId: null,
     decks: { en: [] },
     collections: { en: [] },
     rating: 1000,
@@ -4174,14 +4181,35 @@ function createDefaultWordGameProgress(){
   };
 }
 
+function applyStarterDeckCandidateChoice(progress, starterDeckId){
+  const safeProgress = progress && typeof progress === "object" ? progress : createDefaultWordGameProgress();
+  if(safeProgress.starterDeckId || safeProgress.starterDeckCandidateId) return safeProgress;
+  if(!isKnownStarterDeckId(starterDeckId)) return safeProgress;
+  return Object.assign({}, safeProgress, {
+    version: WORD_GAME_PROGRESS_VERSION,
+    starterDeckCandidateId: starterDeckId
+  });
+}
+
+function clearStarterDeckCandidateChoice(progress){
+  const safeProgress = progress && typeof progress === "object" ? progress : createDefaultWordGameProgress();
+  if(safeProgress.starterDeckId) return safeProgress;
+  return Object.assign({}, safeProgress, {
+    version: WORD_GAME_PROGRESS_VERSION,
+    starterDeckCandidateId: null
+  });
+}
+
 function applyStarterDeckChoice(progress, wordBank, language, starterDeckId){
   const safeProgress = progress && typeof progress === "object" ? progress : createDefaultWordGameProgress();
   if(safeProgress.starterDeckId) return safeProgress;
+  if(safeProgress.starterDeckCandidateId !== starterDeckId) return safeProgress;
   const starterDeck = createStarterDeck(wordBank, language, starterDeckId);
   if(starterDeck.length !== STARTER_DECK_SIZE) return safeProgress;
   return Object.assign({}, safeProgress, {
     version: WORD_GAME_PROGRESS_VERSION,
     starterDeckId,
+    starterDeckCandidateId: starterDeckId,
     decks: Object.assign({}, safeProgress.decks, { [language]: starterDeck }),
     collections: Object.assign({}, safeProgress.collections, {
       [language]: starterDeck.map(card => card.key)
@@ -4232,13 +4260,17 @@ function sanitizeWordGameProgress(rawProgress){
     ? Math.max(0, Math.min(3000, Math.round(Number(rawProgress.rating)))) : fallback.rating;
   const requestedStarterDeckId = typeof rawProgress.starterDeckId === "string"
     ? rawProgress.starterDeckId.trim() : "";
-  const isKnownStarterDeck = STARTER_DECK_DEFINITIONS.some(definition =>
-    definition.id === requestedStarterDeckId);
+  const isKnownStarterDeck = isKnownStarterDeckId(requestedStarterDeckId);
   const starterDeckId = isKnownStarterDeck ? requestedStarterDeckId
     : decks[GAME_LANGUAGE].length ? "legacy" : null;
+  const requestedCandidateId = typeof rawProgress.starterDeckCandidateId === "string"
+    ? rawProgress.starterDeckCandidateId.trim() : "";
+  const starterDeckCandidateId = starterDeckId === "legacy" ? null
+    : starterDeckId || (isKnownStarterDeckId(requestedCandidateId) ? requestedCandidateId : null);
   return {
     version: WORD_GAME_PROGRESS_VERSION,
     starterDeckId,
+    starterDeckCandidateId,
     decks,
     collections,
     rating,
@@ -4386,10 +4418,12 @@ function buildStarterDeckChoiceMarkup(definition, selectedId, locked){
   const deck = createStarterDeck(L().bank, LANG, definition.id);
   const isSelected = definition.id === selectedId;
   const className = "starter-deck-choice" + (isSelected ? " selected" : "") +
-    (locked && !isSelected ? " locked" : "");
+    (locked ? " locked" : "");
   const clickHandler = locked ? "" : ' onclick="selectStarterDeck(\'' + definition.id + '\')"';
+  const disabledAttribute = locked ? " disabled" : "";
   const samples = deck.slice(0, 4).map(card => escapeCollectionText(card.w)).join(" · ");
-  return '<button type="button" class="' + className + '" aria-pressed="' + isSelected + '"' + clickHandler + '>' +
+  return '<button type="button" class="' + className + '" aria-pressed="' + isSelected + '"' +
+    disabledAttribute + clickHandler + '>' +
     '<span class="starter-deck-emblem" aria-hidden="true">' + definition.emblem + '</span>' +
     '<strong>' + escapeCollectionText(definition.name) + '</strong><small>' + STARTER_DECK_SIZE + ' CARDS · TIER 1</small>' +
     '<p>' + escapeCollectionText(definition.description) + '</p>' +
@@ -4398,25 +4432,32 @@ function buildStarterDeckChoiceMarkup(definition, selectedId, locked){
 
 function renderStarterDeckChoices(){
   const savedStarterDeckId = S.wordGameProgress && S.wordGameProgress.starterDeckId;
-  const locked = Boolean(savedStarterDeckId);
-  const selectedId = savedStarterDeckId === "legacy" ? null : savedStarterDeckId || S.pendingStarterDeckId;
+  const savedCandidateId = S.wordGameProgress && S.wordGameProgress.starterDeckCandidateId;
+  const hasClaimedDeck = Boolean(savedStarterDeckId);
+  const selectedId = savedStarterDeckId === "legacy" ? null
+    : savedStarterDeckId || savedCandidateId || S.pendingStarterDeckId;
+  const selectionLocked = Boolean(hasClaimedDeck || selectedId);
   const examSize = getStarterDeckExamSize(STARTER_DECK_SIZE);
   const requiredCorrect = getStarterDeckRequiredCorrect(examSize);
-  const message = locked
+  const message = hasClaimedDeck
     ? savedStarterDeckId === "legacy"
       ? "이미 모험을 시작한 기록이 있구나. <b>기존 덱은 그대로 보존</b>해 두었단다."
       : "네가 고른 <b>스타팅 덱</b>이 잘 성장하고 있구나. 덱 선택은 한 번만 가능하단다."
-    : "여기 세 개의 스타팅 덱이 있단다. 하나를 고르면 그 덱의 <b>20%인 " + examSize +
-      "문제</b>를 시험하마. <b>" + requiredCorrect + "문제 이상</b> 맞히면 네 덱이 된다.";
+    : selectedId
+      ? "이번 시험에서 도전할 덱을 정했구나. <b>선택은 확정되었습니다.</b> 통과한 뒤 최종 결정할 수 있단다."
+      : "여기 세 개의 스타팅 덱이 있단다. 하나를 고르면 그 덱의 <b>20%인 " + examSize +
+        "문제</b>를 시험하마. <b>" + requiredCorrect + "문제 이상</b> 맞히면 네 덱이 된다.";
   const deckMarkup = getStarterDeckDefinitions().map(definition =>
-    buildStarterDeckChoiceMarkup(definition, selectedId, locked)).join("");
+    buildStarterDeckChoiceMarkup(definition, selectedId, selectionLocked)).join("");
 
   $("pn-emoji").textContent = "🧑‍🏫";
   $("pn-title").textContent = "영어박사님 집";
-  $("pn-sub").textContent = locked ? "스타팅 덱은 변경할 수 없습니다." : "세 덱 중 하나를 선택하세요.";
+  $("pn-sub").textContent = selectionLocked
+    ? "시험 통과 전에는 다른 덱으로 변경할 수 없습니다."
+    : "세 덱 중 하나를 선택하세요.";
   $("pn-opts").innerHTML = '<div class="professor-room">' + buildProfessorStageMarkup(message) +
     '<div class="starter-deck-grid">' + deckMarkup + '</div></div>';
-  if(locked){
+  if(hasClaimedDeck){
     $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">나가기</button>';
   } else if(selectedId){
     $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="startStarterDeckExam(\'' +
@@ -4432,25 +4473,32 @@ function openEnglishProfessorHouse(){
   clearWordAnswerTimer();
   setDuelPanelMode(false);
   setProfessorPanelMode(true);
-  S.pendingStarterDeckId = null;
+  S.pendingStarterDeckId = S.wordGameProgress.starterDeckCandidateId || null;
   S.starterDeckExam = null;
+  S.passedStarterDeckId = null;
   renderStarterDeckChoices();
   $("panel").classList.add("show");
 }
 
 function selectStarterDeck(starterDeckId){
-  if(!S || S.wordGameProgress.starterDeckId) return;
-  if(!STARTER_DECK_DEFINITIONS.some(definition => definition.id === starterDeckId)) return;
+  if(!S || S.wordGameProgress.starterDeckId || S.wordGameProgress.starterDeckCandidateId) return;
+  if(!isKnownStarterDeckId(starterDeckId)) return;
+  const nextProgress = applyStarterDeckCandidateChoice(S.wordGameProgress, starterDeckId);
+  if(nextProgress.starterDeckCandidateId !== starterDeckId) return;
+  S.wordGameProgress = nextProgress;
   S.pendingStarterDeckId = starterDeckId;
+  saveWordGameProgress(nextProgress);
   renderStarterDeckChoices();
 }
 
 function startStarterDeckExam(starterDeckId){
   if(!S || S.wordGameProgress.starterDeckId) return;
+  if(S.wordGameProgress.starterDeckCandidateId !== starterDeckId) return;
   const deck = createStarterDeck(L().bank, LANG, starterDeckId);
   const questionCount = getStarterDeckExamSize(deck.length);
   if(deck.length !== STARTER_DECK_SIZE || questionCount === 0) return;
   S.pendingStarterDeckId = starterDeckId;
+  S.passedStarterDeckId = null;
   S.starterDeckExam = {
     starterDeckId,
     questions: selectRandomCards(deck, questionCount),
@@ -4507,38 +4555,65 @@ function finishStarterDeckExam(){
   const total = exam.questions.length;
   const passed = canClaimStarterDeck(exam.correct, total);
   const definition = STARTER_DECK_DEFINITIONS.find(candidate => candidate.id === exam.starterDeckId);
-  if(passed){
-    const nextProgress = applyStarterDeckChoice(S.wordGameProgress, L().bank, LANG, exam.starterDeckId);
-    S.wordGameProgress = nextProgress;
-    S.deck = nextProgress.decks[LANG].slice();
-    S.collectionKeys = nextProgress.collections[LANG].slice();
-    saveWordGameProgress(nextProgress);
-    updateWorldMapHud();
-    updateCollectionProgress();
-  }
   S.starterDeckExam = null;
-  $("pn-title").textContent = passed ? "스타팅 덱 획득!" : "조금만 더 복습하자";
+  S.passedStarterDeckId = passed ? exam.starterDeckId : null;
+  $("pn-title").textContent = passed ? "시험 통과!" : "조금만 더 복습하자";
   $("pn-sub").textContent = exam.correct + "/" + total + " 정답 · 통과 기준 " +
     getStarterDeckRequiredCorrect(total) + "/" + total;
   const message = passed
-    ? "훌륭하구나! <b>" + escapeCollectionText(definition.name) + " " + STARTER_DECK_SIZE +
-      "장</b>을 네 덱과 도감에 등록했다."
-    : "이번에는 덱을 지급할 수 없구나. 같은 덱에 다시 도전하거나 다른 덱을 골라도 된단다.";
+    ? "훌륭하구나! <b>" + escapeCollectionText(definition.name) + "</b> 시험을 통과했다. " +
+      "이 덱으로 시작할지, 포기하고 다른 덱에 도전할지 골라 보렴."
+    : "이번에는 덱을 지급할 수 없구나. 선택한 덱은 바뀌지 않으니 같은 덱에 다시 도전하렴.";
   $("pn-opts").innerHTML = '<div class="professor-room">' + buildProfessorStageMarkup(message) +
     '<div class="starter-exam-result"><b>' + exam.correct + " / " + total + '</b>' +
-    (passed ? "덱과 도감에 " + STARTER_DECK_SIZE + "장이 등록되었습니다."
+    (passed ? "아직 덱에 등록되지 않았습니다. 아래에서 최종 선택하세요."
       : getStarterDeckRequiredCorrect(total) + "문제 이상 맞혀야 통과합니다.") + '</div></div>';
   $("pn-foot").innerHTML = passed
-    ? '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">모험 시작</button>'
+    ? '<button class="ov-btn" type="button" onclick="confirmStarterDeckChoice(\'' + exam.starterDeckId + '\')">이 덱으로 시작</button>' +
+      '<button class="ov-btn ghost" type="button" onclick="chooseDifferentStarterDeckAfterPass(\'' +
+      exam.starterDeckId + '\')">다른 덱 고르기</button>'
     : '<button class="ov-btn" type="button" onclick="startStarterDeckExam(\'' + exam.starterDeckId + '\')">같은 덱 재시험</button>' +
-      '<button class="ov-btn ghost" type="button" onclick="renderStarterDeckChoices()">다른 덱 고르기</button>';
+      '<button class="ov-btn ghost" type="button" onclick="closeEnglishProfessorHouse()">나가기</button>';
+}
+
+function confirmStarterDeckChoice(starterDeckId){
+  if(!S || S.passedStarterDeckId !== starterDeckId || S.wordGameProgress.starterDeckId) return;
+  const definition = STARTER_DECK_DEFINITIONS.find(candidate => candidate.id === starterDeckId);
+  if(!definition) return;
+  const nextProgress = applyStarterDeckChoice(S.wordGameProgress, L().bank, LANG, starterDeckId);
+  if(nextProgress.starterDeckId !== starterDeckId) return;
+  S.wordGameProgress = nextProgress;
+  S.deck = nextProgress.decks[LANG].slice();
+  S.collectionKeys = nextProgress.collections[LANG].slice();
+  S.passedStarterDeckId = null;
+  saveWordGameProgress(nextProgress);
+  updateWorldMapHud();
+  updateCollectionProgress();
+  $("pn-title").textContent = "스타팅 덱 획득!";
+  $("pn-sub").textContent = definition.name + "으로 모험을 시작합니다.";
+  $("pn-opts").innerHTML = '<div class="professor-room">' +
+    buildProfessorStageMarkup("좋은 선택이구나! <b>" + escapeCollectionText(definition.name) + " " +
+      STARTER_DECK_SIZE + "장</b>을 네 덱과 도감에 등록했다.") +
+    '<div class="starter-exam-result"><b>' + STARTER_DECK_SIZE + ' CARDS</b>덱과 도감 등록 완료</div></div>';
+  $("pn-foot").innerHTML = '<button class="ov-btn" type="button" onclick="closeEnglishProfessorHouse()">모험 시작</button>';
+}
+
+function chooseDifferentStarterDeckAfterPass(starterDeckId){
+  if(!S || S.passedStarterDeckId !== starterDeckId || S.wordGameProgress.starterDeckId) return;
+  const nextProgress = clearStarterDeckCandidateChoice(S.wordGameProgress);
+  S.wordGameProgress = nextProgress;
+  S.pendingStarterDeckId = null;
+  S.passedStarterDeckId = null;
+  saveWordGameProgress(nextProgress);
+  renderStarterDeckChoices();
 }
 
 function closeEnglishProfessorHouse(){
   clearWordAnswerTimer();
   if(S){
     S.starterDeckExam = null;
-    S.pendingStarterDeckId = null;
+    S.pendingStarterDeckId = S.wordGameProgress.starterDeckCandidateId || null;
+    S.passedStarterDeckId = null;
   }
   setProfessorPanelMode(false);
   $("panel").classList.remove("show");

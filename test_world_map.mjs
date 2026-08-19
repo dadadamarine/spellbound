@@ -44,6 +44,11 @@ test("새싹마을의 집은 영어박사님 집이며 내부에서 세 스타�
   assert.match(html, /function startStarterDeckExam/);
   assert.match(html, /function submitStarterDeckExamAnswer/);
   assert.match(html, /function finishStarterDeckExam/);
+  assert.match(html, /선택은 확정되었습니다/);
+  assert.match(html, /function confirmStarterDeckChoice/);
+  assert.match(html, /function chooseDifferentStarterDeckAfterPass/);
+  assert.match(html, /이 덱으로 시작/);
+  assert.match(html, /다른 덱 고르기/);
 });
 
 test("플레이어 시작 지점은 걸을 수 있는 새싹마을 길이다", () => {

@@ -24,7 +24,7 @@ function loadCaptureTestApi() {
   const source = html.slice(startIndex, endIndex + endMarker.length);
   const sandbox = {};
   vm.runInNewContext(
-    `${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
+    `${dataSource}\nconst GAME_LANGUAGE = "en";\n${source}\n;globalThis.__captureTestApi = { buildEncounterExample, getCaptureExamSize, getRequiredCorrectCount, canCaptureEncounter, createWordCard, addCardToDeck, addCardKeyToCollection, shouldStartWordEncounter, isCardAnswerCorrect, isTimedCardAnswerCorrect, getWordAnswerTimeLimitSeconds, getStarterDeckDefinitions, getStarterDeckExamSize, getStarterDeckRequiredCorrect, canClaimStarterDeck, createStarterDeck, applyStarterDeckCandidateChoice, clearStarterDeckCandidateChoice, applyStarterDeckChoice, createDefaultWordGameProgress, sanitizeWordGameProgress };`,
     sandbox
   );
   return sandbox.__captureTestApi;
@@ -115,6 +115,7 @@ test("새 사용자는 영어박사님 집에서 스타팅 덱을 고르기 전 
   const progress = api.createDefaultWordGameProgress();
 
   assert.equal(progress.starterDeckId, null);
+  assert.equal(progress.starterDeckCandidateId, null);
   assert.equal(progress.decks.en.length, 0);
   assert.equal(progress.collections.en.length, 0);
 });
@@ -136,14 +137,44 @@ test("영어박사님이 제시하는 세 스타팅 덱은 서로 겹치지 않�
 
 test("스타팅 덱을 확정하면 선택한 25장만 덱과 도감에 등록된다", () => {
   const api = loadCaptureTestApi();
-  const initialProgress = api.createDefaultWordGameProgress();
+  const initialProgress = api.applyStarterDeckCandidateChoice(
+    api.createDefaultWordGameProgress(), "adventure"
+  );
   const selected = api.applyStarterDeckChoice(initialProgress, loadEnglishWordBank(), "en", "adventure");
 
   assert.equal(selected.starterDeckId, "adventure");
+  assert.equal(selected.starterDeckCandidateId, "adventure");
   assert.equal(selected.decks.en.length, 25);
   assert.equal(selected.collections.en.length, 25);
   assert.equal(selected.decks.en[0].w, "bridge");
   assert.deepEqual(new Set(selected.collections.en), new Set(selected.decks.en.map(card => card.key)));
+});
+
+test("스타팅 덱을 한 번 고르면 실패하거나 다시 불러와도 다른 덱으로 변경할 수 없다", () => {
+  const api = loadCaptureTestApi();
+  const initialProgress = api.createDefaultWordGameProgress();
+  const dailyChoice = api.applyStarterDeckCandidateChoice(initialProgress, "daily");
+  const switchAttempt = api.applyStarterDeckCandidateChoice(dailyChoice, "adventure");
+  const reloaded = api.sanitizeWordGameProgress(switchAttempt);
+  const wrongDeckClaim = api.applyStarterDeckChoice(reloaded, loadEnglishWordBank(), "en", "adventure");
+
+  assert.equal(dailyChoice.starterDeckCandidateId, "daily");
+  assert.equal(dailyChoice.decks.en.length, 0);
+  assert.equal(switchAttempt.starterDeckCandidateId, "daily");
+  assert.equal(reloaded.starterDeckCandidateId, "daily");
+  assert.equal(wrongDeckClaim.starterDeckId, null);
+  assert.equal(wrongDeckClaim.decks.en.length, 0);
+});
+
+test("시험 통과 후 덱을 거절하면 후보 선택을 해제하고 다른 덱을 고를 수 있다", () => {
+  const api = loadCaptureTestApi();
+  const dailyChoice = api.applyStarterDeckCandidateChoice(api.createDefaultWordGameProgress(), "daily");
+  const declined = api.clearStarterDeckCandidateChoice(dailyChoice);
+  const adventureChoice = api.applyStarterDeckCandidateChoice(declined, "adventure");
+
+  assert.equal(declined.starterDeckCandidateId, null);
+  assert.equal(declined.decks.en.length, 0);
+  assert.equal(adventureChoice.starterDeckCandidateId, "adventure");
 });
 
 test("스타팅 덱 시험은 선택한 25장의 20%인 5장을 출제하고 4문제 이상 맞혀야 통과한다", () => {
@@ -170,7 +201,8 @@ test("포획한 카드는 도감에 중복 없이 등록된다", () => {
 test("덱에서 카드를 제거해도 도감 등록은 유지된다", () => {
   const api = loadCaptureTestApi();
   const progress = api.applyStarterDeckChoice(
-    api.createDefaultWordGameProgress(), loadEnglishWordBank(), "en", "daily"
+    api.applyStarterDeckCandidateChoice(api.createDefaultWordGameProgress(), "daily"),
+    loadEnglishWordBank(), "en", "daily"
   );
   const removedFromDeck = {
     ...progress,
@@ -197,7 +229,7 @@ test("구버전의 5장 저장 덱도 게임 시작 시 실제 50장 덱으로 �
 
   const migrated = api.sanitizeWordGameProgress(legacyProgress);
 
-  assert.equal(migrated.version, 4);
+  assert.equal(migrated.version, 5);
   assert.equal(migrated.decks.en.length, 50);
   assert.equal(new Set(migrated.decks.en.map(card => card.key)).size, 50);
   assert.equal(migrated.collections.en.length, 50);
