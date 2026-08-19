@@ -163,14 +163,47 @@ test("MOCK 사용자의 제출 답안은 첫 라운드만 오답이고 이후에
   assert.equal(api.getMockHallSubmittedAnswer(user, card, 4), "house");
 });
 
-test("대결 화면은 캐릭터·공격·피격·방어 애니메이션을 제공한다", () => {
+test("대결 화면은 캐릭터·주문·피격·정답 애니메이션을 제공한다", () => {
   assert.match(html, /class="duel-battlefield/);
-  assert.match(html, /duel-shot player-shot/);
+  assert.match(html, /duel-spell player-spell/);
+  assert.match(html, /duel-spell opponent-spell/);
+  assert.match(html, /duel-correct-burst/);
   assert.match(html, /@keyframes duelAttackRight/);
-  assert.match(html, /@keyframes duelShotLeft/);
+  assert.match(html, /@keyframes duelSpellLeft/);
   assert.match(html, /@keyframes duelHit/);
-  assert.match(html, /@keyframes duelGuard/);
+  assert.match(html, /@keyframes duelDodge/);
+  assert.match(html, /duel-dodge-label/);
+  assert.match(html, /@keyframes duelCorrectBurst/);
   assert.match(html, /prefers-reduced-motion: reduce/);
+});
+
+test("대결 문제의 뜻·빈칸 예문·입력·타이머는 전투 화면 내부에 통합된다", () => {
+  const answerStart = html.indexOf("function renderDuelAnswer()");
+  const answerEnd = html.indexOf("function submitHallDuelAnswer", answerStart);
+  const answerSource = html.slice(answerStart, answerEnd);
+
+  assert.match(html, /function buildDuelQuestionMarkup/);
+  assert.match(html, /class="duel-battle-detail/);
+  assert.match(html, /EXAMPLE · 빈칸에 들어갈 단어/);
+  assert.match(answerSource, /buildDuelBattlefieldMarkup\([\s\S]*buildDuelQuestionMarkup/);
+  assert.doesNotMatch(answerSource, /buildCollectionPromptMarkup/);
+});
+
+test("문제 표시 단계에는 상대 공격이 없고 오답 결과에서만 상대 주문 공격을 만든다", () => {
+  const battlefieldStart = html.indexOf("function buildDuelBattlefieldMarkup");
+  const battlefieldEnd = html.indexOf("function buildDuelScoreMarkup", battlefieldStart);
+  const battlefieldSource = html.slice(battlefieldStart, battlefieldEnd);
+
+  const exchangeSource = battlefieldSource.slice(
+    battlefieldSource.indexOf('if(phase === "exchange")'),
+    battlefieldSource.indexOf('} else if(phase === "resolved")')
+  );
+  assert.doesNotMatch(exchangeSource, /opponent-spell/);
+  assert.match(exchangeSource, /opponentWasCorrect \? "dodge" : "hit"/);
+  assert.match(html, /function renderDuelPlayerAttack/);
+  assert.match(html, /buildDuelBattlefieldMarkup\([\s\S]{0,80}duel, "question"/);
+  assert.match(battlefieldSource, /if\(duel\.playerWasCorrect\)[\s\S]*duel-correct-burst/);
+  assert.match(battlefieldSource, /else \{[\s\S]*duel-spell opponent-spell/);
 });
 
 test("대결용 손패는 라운드마다 새로 뽑고, 사용한 카드가 덱에 다시 안 돌아간다", () => {
