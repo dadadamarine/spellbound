@@ -3,7 +3,7 @@
   "auditId": "SPELLBOUND-CORE",
   "scope": "Wordland 핵심 사용자 플로우와 영어박사님 집 실내 진입",
   "run": {
-    "sourceSha": "66ba50cfc07b9c6d47276276e46123661c69cf15+working-tree",
+    "sourceSha": "77b5ba231afa1c0fb8d4b3f59c278079902a438b",
     "platform": "web-desktop",
     "environment": "Chromium in-app browser, http://127.0.0.1:8798/index.html, 2026-08-19 KST",
     "dataPolicy": "별도 localhost origin의 테스트 저장만 사용. 배포 저장과 외부 사용자 데이터는 변경하지 않음."
